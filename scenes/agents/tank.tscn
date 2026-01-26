@@ -1,0 +1,9 @@
+[gd_scene load_steps=3 format=3 uid="uid://ce4fw05y5mthp"]
+
+[ext_resource type="PackedScene" uid="uid://b34bhe8nmv53" path="res://scenes/agent.tscn" id="1_2wenn"]
+[ext_resource type="Texture2D" uid="uid://cvoorbvvbssuq" path="res://assets/tank.png" id="2_s5vy8"]
+
+[node name="Tank" instance=ExtResource("1_2wenn")]
+
+[node name="Sprite2D" parent="." index="0"]
+texture = ExtResource("2_s5vy8")

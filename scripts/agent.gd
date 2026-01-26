@@ -1,17 +1,18 @@
 extends CharacterBody2D
+class_name Agent
 
 @export var speed := 120.0
 @export var max_health: int = 100
 @export var max_stamina: int = 100
 @onready var nav_agent: NavigationAgent2D = $NavigationAgent2D
 
-var health: int = 75:
+@export var health: int = 75:
 	set(value):
 		health = clamp(value, 0, max_health)
 		if health_bar:
 			health_bar.value = health
 			
-var stamina: int = 45:
+@export var stamina: int = 45:
 	set(value):
 		stamina = clamp(value, 0, max_stamina)
 		if stamina_bar:
@@ -41,9 +42,3 @@ func _physics_process(delta):
 
 func _on_velocity_computed(safe_velocity: Vector2):
 	velocity = safe_velocity
-
-func _input(event):
-	if event is InputEventMouseButton and event.pressed:
-		if event.button_index == MOUSE_BUTTON_LEFT:
-			var target = get_global_mouse_position()
-			nav_agent.set_target_position(target)

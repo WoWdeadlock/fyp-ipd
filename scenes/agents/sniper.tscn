@@ -1,0 +1,9 @@
+[gd_scene load_steps=3 format=3 uid="uid://bxk2q1qa5btdn"]
+
+[ext_resource type="PackedScene" uid="uid://b34bhe8nmv53" path="res://scenes/agent.tscn" id="1_qrw7u"]
+[ext_resource type="Texture2D" uid="uid://b15onu7cbaldn" path="res://assets/sniper.png" id="2_bcpdo"]
+
+[node name="Sniper" instance=ExtResource("1_qrw7u")]
+
+[node name="Sprite2D" parent="." index="0"]
+texture = ExtResource("2_bcpdo")
