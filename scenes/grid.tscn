@@ -1,10 +1,13 @@
-[gd_scene load_steps=10 format=4 uid="uid://loufb8remmri"]
+[gd_scene load_steps=13 format=4 uid="uid://loufb8remmri"]
 
 [ext_resource type="Texture2D" uid="uid://uvn3maqhnm6q" path="res://assets/tiles_prototype.png" id="1_t5fjg"]
 [ext_resource type="PackedScene" uid="uid://d1rgyt3hwccse" path="res://scenes/agents/healer.tscn" id="2_gnlqp"]
 [ext_resource type="PackedScene" uid="uid://bxk2q1qa5btdn" path="res://scenes/agents/sniper.tscn" id="3_jaoqn"]
+[ext_resource type="Script" uid="uid://doswe2tvmq4us" path="res://scripts/healer.gd" id="3_ns5hy"]
 [ext_resource type="PackedScene" uid="uid://ce4fw05y5mthp" path="res://scenes/agents/tank.tscn" id="4_726jt"]
+[ext_resource type="Script" uid="uid://ccnimtc70htxe" path="res://scripts/sniper.gd" id="5_uwaop"]
 [ext_resource type="PackedScene" uid="uid://ifrxe8fd4dbv" path="res://scenes/boss/boss.tscn" id="6_726jt"]
+[ext_resource type="Script" uid="uid://qfpj32fs5e8v" path="res://scripts/tank.gd" id="7_4hvkd"]
 
 [sub_resource type="NavigationPolygon" id="NavigationPolygon_w88cy"]
 vertices = PackedVector2Array(16, 16, -16, 16, -16, -16, 16, -16)
@@ -38,19 +41,15 @@ navigation_polygon = SubResource("NavigationPolygon_jaoqn")
 
 [node name="Healer" parent="." instance=ExtResource("2_gnlqp")]
 position = Vector2(254, 190)
-max_health = 40
-max_stamina = 150
-health = 1
-stamina = 125
+script = ExtResource("3_ns5hy")
 
 [node name="Sniper" parent="." instance=ExtResource("3_jaoqn")]
 position = Vector2(590, 417)
+script = ExtResource("5_uwaop")
 
 [node name="Tank" parent="." instance=ExtResource("4_726jt")]
 position = Vector2(453, 414)
-max_health = 200
-max_stamina = 50
-health = 150
+script = ExtResource("7_4hvkd")
 
 [node name="Boss" parent="." instance=ExtResource("6_726jt")]
 position = Vector2(604, 138)
