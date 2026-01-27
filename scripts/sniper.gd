@@ -196,3 +196,12 @@ func attempt_power_shot():
 		print(name, " dealt MASSIVE 85 damage with power shot!")
 	
 	is_using_power_shot = false
+
+# MCTS Wrapper Methods
+func use_crippling_shot():
+	if not is_using_crippling_shot:
+		attempt_crippling_shot()
+
+func use_power_shot():
+	if not is_using_power_shot:
+		attempt_power_shot()

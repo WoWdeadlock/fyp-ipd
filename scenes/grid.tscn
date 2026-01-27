@@ -1,4 +1,4 @@
-[gd_scene load_steps=13 format=4 uid="uid://loufb8remmri"]
+[gd_scene load_steps=14 format=4 uid="uid://loufb8remmri"]
 
 [ext_resource type="Texture2D" uid="uid://uvn3maqhnm6q" path="res://assets/tiles_prototype.png" id="1_t5fjg"]
 [ext_resource type="PackedScene" uid="uid://d1rgyt3hwccse" path="res://scenes/agents/healer.tscn" id="2_gnlqp"]
@@ -8,6 +8,7 @@
 [ext_resource type="Script" uid="uid://ccnimtc70htxe" path="res://scripts/sniper.gd" id="5_uwaop"]
 [ext_resource type="PackedScene" uid="uid://ifrxe8fd4dbv" path="res://scenes/boss/boss.tscn" id="6_726jt"]
 [ext_resource type="Script" uid="uid://qfpj32fs5e8v" path="res://scripts/tank.gd" id="7_4hvkd"]
+[ext_resource type="Script" uid="uid://bl01w5yeu46ld" path="res://scripts/mcts_bridge.gd" id="8_mcts"]
 
 [sub_resource type="NavigationPolygon" id="NavigationPolygon_w88cy"]
 vertices = PackedVector2Array(16, 16, -16, 16, -16, -16, 16, -16)
@@ -53,3 +54,6 @@ script = ExtResource("7_4hvkd")
 
 [node name="Boss" parent="." instance=ExtResource("6_726jt")]
 position = Vector2(604, 138)
+
+[node name="MCTSBridge" type="Node" parent="."]
+script = ExtResource("8_mcts")
