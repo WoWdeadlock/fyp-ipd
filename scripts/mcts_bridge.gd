@@ -51,6 +51,12 @@ func _handle_command(cmd: Dictionary):
 				flag_file.store_string("{}")
 				flag_file.close()
 			get_tree().reload_current_scene()
+		"pause_boss":
+			_pause_boss()
+			_write_state()
+		"unpause_boss":
+			_unpause_boss()
+			_write_state()
 
 func get_state() -> Dictionary:
 	var tank = get_tree().get_first_node_in_group("tank")
@@ -146,3 +152,19 @@ func execute_action(action: Dictionary) -> bool:
 			return false
 
 	return true
+
+func _pause_boss():
+	# Pause boss AI during MCTS search
+	var boss = get_tree().get_first_node_in_group("boss")
+	if boss:
+		boss.set_process(false)
+		boss.set_physics_process(false)
+		print("Boss paused for MCTS search")
+
+func _unpause_boss():
+	# Unpause boss AI after MCTS search
+	var boss = get_tree().get_first_node_in_group("boss")
+	if boss:
+		boss.set_process(true)
+		boss.set_physics_process(true)
+		print("Boss unpaused")

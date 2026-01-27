@@ -116,7 +116,7 @@ func execute_ranged_attack(delta: float):
 		print("State: RANGED - Drawing bow")
 
 		if current_target.has_method("take_damage"):
-			current_target.take_damage(3)
+			current_target.take_damage(25)
 			print("Boss dealt 30 ranged damage to ", current_target.name)
 
 		is_in_position = false
@@ -175,7 +175,7 @@ func attack_target(enemy: Node2D, delta: float) -> void:
 		current_state = State.BUSY
 		# Deal melee damage to the target
 		if enemy and is_instance_valid(enemy) and enemy.has_method("take_damage"):
-			enemy.take_damage(5)
+			enemy.take_damage(35)
 			print("Boss dealt 50 damage to ", enemy.name)
 		await get_tree().create_timer(1.0).timeout
 		current_state = State.IDLE

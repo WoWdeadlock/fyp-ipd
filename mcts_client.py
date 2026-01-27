@@ -67,6 +67,32 @@ def reset():
 
 	return state
 
+def pause_boss():
+	"""Pause boss AI (for MCTS search)"""
+	if STATE_FILE.exists():
+		STATE_FILE.unlink()
+
+	COMMAND_FILE.write_text(json.dumps({"type": "pause_boss"}))
+
+	wait_for_state(timeout=2.0)
+	state = json.loads(STATE_FILE.read_text())
+	STATE_FILE.unlink()
+
+	return state
+
+def unpause_boss():
+	"""Unpause boss AI (after MCTS search)"""
+	if STATE_FILE.exists():
+		STATE_FILE.unlink()
+
+	COMMAND_FILE.write_text(json.dumps({"type": "unpause_boss"}))
+
+	wait_for_state(timeout=2.0)
+	state = json.loads(STATE_FILE.read_text())
+	STATE_FILE.unlink()
+
+	return state
+
 # ========== Example Usage ==========
 
 def test_basic_operations():
@@ -152,6 +178,82 @@ def run_random_episode():
 	print(f"\n=== Episode Complete ===")
 	print(f"Outcome: {state['outcome']}")
 	print(f"Total steps: {step}")
+
+# ========== MCTS Utility Functions ==========
+
+def get_all_actions():
+	"""Get list of all possible actions"""
+	return [
+		("tank", "melee", ""),
+		("tank", "taunt", ""),
+		("tank", "defensive", ""),
+		("healer", "heal", "tank"),
+		("healer", "heal", "sniper"),
+		("healer", "shield", "tank"),
+		("healer", "restore", "sniper"),
+		("sniper", "shot", ""),
+		("sniper", "cripple", ""),
+		("sniper", "power", ""),
+	]
+
+def action_to_string(action):
+	"""Pretty print action tuple"""
+	agent, ability, target = action
+	if target:
+		return f"{agent}.{ability}({target})"
+	return f"{agent}.{ability}()"
+
+def get_action_cost(action):
+	"""Get stamina cost for an action"""
+	costs = {
+		("tank", "melee", ""): 20,
+		("tank", "taunt", ""): 15,
+		("tank", "defensive", ""): 10,
+		("healer", "heal", "tank"): 40,
+		("healer", "heal", "sniper"): 40,
+		("healer", "shield", "tank"): 30,
+		("healer", "restore", "sniper"): 50,
+		("sniper", "shot", ""): 25,
+		("sniper", "cripple", ""): 40,
+		("sniper", "power", ""): 60,
+	}
+	return costs.get(action, 0)
+
+def is_action_valid(action, state):
+	"""Check if action is valid given current state"""
+	agent, ability, target = action
+
+	# Check if agent is alive
+	if state[agent]['hp'] <= 0:
+		return False
+
+	# Check stamina
+	cost = get_action_cost(action)
+	if state[agent]['stamina'] < cost:
+		return False
+
+	# Check if target is alive (for targeted abilities)
+	if target and state[target]['hp'] <= 0:
+		return False
+
+	# Don't heal at full HP
+	if ability == "heal":
+		max_hp = {"tank": 150, "healer": 70, "sniper": 80}
+		if state[target]['hp'] >= max_hp[target]:
+			return False
+
+	# Don't restore at full stamina
+	if ability == "restore" and target == "sniper":
+		if state[target]['stamina'] >= 120:
+			return False
+
+	return True
+
+def get_valid_actions_for_state(state):
+	"""Get list of valid actions for current state"""
+	all_actions = get_all_actions()
+	return [a for a in all_actions if is_action_valid(a, state)]
+
 
 if __name__ == "__main__":
 	# Make sure Godot game is running before executing this!
