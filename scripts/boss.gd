@@ -21,10 +21,10 @@ var slow_timer: float = 0.0
 var forced_target: Node2D = null
 var forced_target_timer: float = 0.0
 
-@export var max_health: int = 500
+@export var max_health: int = 600
 @export var max_stamina: int = 300
 
-@export var health: int = 500:
+@export var health: int = 600:
 	set(value):
 		health = clamp(value, 0, max_health)
 		if health_bar:
@@ -116,11 +116,16 @@ func execute_ranged_attack(delta: float):
 		print("State: RANGED - Drawing bow")
 
 		if current_target.has_method("take_damage"):
-			current_target.take_damage(25)
-			print("Boss dealt 30 ranged damage to ", current_target.name)
+			current_target.take_damage(15)
+			print("Boss dealt 15 ranged damage to ", current_target.name)
 
 		is_in_position = false
 		await get_tree().create_timer(2.0).timeout
+
+		# Check if boss is still alive after the await
+		if not is_instance_valid(self) or health <= 0:
+			return
+
 		current_state = State.IDLE
 		return
 
@@ -150,9 +155,13 @@ func execute_ranged_attack(delta: float):
 func execute_melee_attack():
 	current_state = State.BUSY
 	print("State: MELEE - Unsheathing sword")
-	
+
 	await get_tree().create_timer(1.0).timeout
-	
+
+	# Check if boss is still alive after the await
+	if not is_instance_valid(self) or health <= 0:
+		return
+
 	current_state = State.IDLE
 
 func attack_target(enemy: Node2D, delta: float) -> void:
@@ -175,9 +184,14 @@ func attack_target(enemy: Node2D, delta: float) -> void:
 		current_state = State.BUSY
 		# Deal melee damage to the target
 		if enemy and is_instance_valid(enemy) and enemy.has_method("take_damage"):
-			enemy.take_damage(35)
-			print("Boss dealt 50 damage to ", enemy.name)
+			enemy.take_damage(25)
+			print("Boss dealt 25 damage to ", enemy.name)
 		await get_tree().create_timer(1.0).timeout
+
+		# Check if boss is still alive after the await
+		if not is_instance_valid(self) or health <= 0:
+			return
+
 		current_state = State.IDLE
 	else:
 		# Only update navigation if far from target or target moved significantly
@@ -213,10 +227,28 @@ func process_idle():
 	var bodies = boss_vision.get_overlapping_bodies()
 	var candidates = []
 
+	# AGGRESSIVE targeting logic (matches virtual_simulator.py)
 	for body in bodies:
 		if body is Agent:
 			var distance = global_position.distance_to(body.global_position)
-			var score = (distance * 0.5) + (body.health * 0.5)
+
+			# Base score: lower HP = MUCH higher priority
+			var hp_ratio = float(body.health) / float(body.max_health)
+			var hp_score = (1.0 - hp_ratio) * 100.0  # 0-100 points, low HP favored
+
+			# Distance penalty (prefer closer targets)
+			var distance_penalty = (distance / 100.0) * 5.0
+
+			# Role priority: Moderate healer priority (nerfed for balance)
+			var role_bonus = 0.0
+			if body.is_in_group("healer"):
+				role_bonus = 25.0  # Healer is priority target (reduced from 50)
+			elif body.is_in_group("sniper"):
+				role_bonus = 15.0  # Sniper second priority (high damage)
+			# Tank gets no bonus (lowest priority)
+
+			# Lower score = higher priority
+			var score = distance_penalty - hp_score - role_bonus
 			candidates.append({"target": body, "score": score})
 
 	if candidates.size() == 0:
@@ -225,20 +257,21 @@ func process_idle():
 	candidates.sort_custom(func(a, b): return a.score < b.score)
 
 	var top_candidates = candidates.slice(0, min(candidates.size(), 3))
-	
+
 	var best_target = null
 	var roll = randf()
 
+	# AGGRESSIVE probabilistic selection (heavily favor best target)
 	if top_candidates.size() == 1:
 		best_target = top_candidates[0].target
 	elif top_candidates.size() == 2:
-		best_target = top_candidates[0].target if roll < 0.7 else top_candidates[1].target
+		best_target = top_candidates[0].target if roll < 0.85 else top_candidates[1].target  # 85% best
 	else:
-		if roll < 0.6:
+		if roll < 0.75:  # 75% best target
 			best_target = top_candidates[0].target
-		elif roll < 0.9:
+		elif roll < 0.95:  # 20% second best
 			best_target = top_candidates[1].target
-		else:
+		else:  # 5% worst target
 			best_target = top_candidates[2].target
 	current_target = best_target
 	_decide_attack_state(best_target)

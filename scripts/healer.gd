@@ -6,8 +6,8 @@ var is_buffing: bool = false
 var is_restoring: bool = false
 
 func _ready():
-	max_health = 70
-	health = 70
+	max_health = 100
+	health = 100
 	max_stamina = 150
 	stamina = 150
 	speed = 110.0
@@ -50,8 +50,18 @@ func _on_velocity_computed(safe_velocity: Vector2):
 	velocity = safe_velocity
 
 func heal_target(target_type: String):
+	# Prevent spam
+	if is_healing or is_buffing or is_restoring:
+		return
+
+	# Heal is now FREE (no stamina cost)
+	# if stamina < 40:
+	# 	print(name, ": Not enough stamina to heal!")
+	# 	return
+
 	is_healing = true
-	
+	# stamina -= 40
+
 	var target_node = null
 	if target_type == "sniper":
 		target_node = get_tree().get_first_node_in_group("sniper")
@@ -64,22 +74,31 @@ func heal_target(target_type: String):
 		return
 	
 	print(name, ": Healing ", target_node.name, "...")
-	
+
 	await get_tree().create_timer(1.0).timeout
-	
+
+	# Check if healer is still alive after the await
+	if not is_instance_valid(self) or health <= 0:
+		print(name, ": Heal interrupted - healer is dead")
+		return
+
 	if target_node and is_instance_valid(target_node) and target_node.has_method("heal"):
-		target_node.heal(40)
-		print(name, " healed ", target_node.name, " for 40 HP")
-	
+		target_node.heal(50)
+		print(name, " healed ", target_node.name, " for 50 HP")
+
 	is_healing = false
 
 func shield_buff(target_type: String):
-	if stamina < 20:
+	# Prevent spam
+	if is_buffing or is_healing or is_restoring:
+		return
+
+	if stamina < 30:
 		print(name, ": Not enough stamina for shield buff!")
 		return
-	
+
 	is_buffing = true
-	stamina -= 20
+	stamina -= 30
 	
 	var target_node = null
 	if target_type == "sniper":
@@ -93,23 +112,32 @@ func shield_buff(target_type: String):
 		return
 	
 	print(name, ":  Casting shield on ", target_node.name, "...")
-	
+
 	await get_tree().create_timer(0.8).timeout
-	
+
+	# Check if healer is still alive after the await
+	if not is_instance_valid(self) or health <= 0:
+		print(name, ": Shield buff interrupted - healer is dead")
+		return
+
 	if target_node and is_instance_valid(target_node):
 		if target_node.has_method("apply_shield"):
 			target_node.apply_shield()
 			print(name, " granted shield to ", target_node.name, " (50% damage reduction for 6s)")
-	
+
 	is_buffing = false
 
 func restore_stamina(target_type: String):
-	if stamina < 25:
+	# Prevent spam
+	if is_restoring or is_healing or is_buffing:
+		return
+
+	if stamina < 50:
 		print(name, ": Not enough stamina to restore stamina!")
 		return
-	
+
 	is_restoring = true
-	stamina -= 25
+	stamina -= 50
 	
 	var target_node = null
 	if target_type == "sniper":
@@ -123,12 +151,17 @@ func restore_stamina(target_type: String):
 		return
 	
 	print(name, ": Restoring stamina to ", target_node.name, "...")
-	
+
 	await get_tree().create_timer(1.0).timeout
-	
+
+	# Check if healer is still alive after the await
+	if not is_instance_valid(self) or health <= 0:
+		print(name, ": Stamina restore interrupted - healer is dead")
+		return
+
 	if target_node and is_instance_valid(target_node):
-		var restore_amount = 50
+		var restore_amount = 60
 		target_node.stamina += restore_amount
 		print(name, " restored ", restore_amount, " stamina to ", target_node.name)
-	
+
 	is_restoring = false

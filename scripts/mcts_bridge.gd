@@ -65,10 +65,10 @@ func get_state() -> Dictionary:
 	var boss = get_tree().get_first_node_in_group("boss")
 
 	var state = {
-		"tank": _serialize_char(tank),
+		"tank": _serialize_tank(tank),
 		"healer": _serialize_char(healer),
 		"sniper": _serialize_char(sniper),
-		"boss": _serialize_char(boss),
+		"boss": _serialize_boss(boss),
 		"is_terminal": _check_terminal(),
 		"outcome": _get_outcome()
 	}
@@ -83,15 +83,60 @@ func _serialize_char(char: Node2D) -> Dictionary:
 		"stamina": char.stamina
 	}
 
+func _serialize_tank(tank: Node2D) -> Dictionary:
+	if not tank or not is_instance_valid(tank):
+		return {"pos": [0.0, 0.0], "hp": 0, "stamina": 0, "has_shield": false, "defensive_active": false}
+	return {
+		"pos": [tank.global_position.x, tank.global_position.y],
+		"hp": tank.health,
+		"stamina": tank.stamina,
+		"has_shield": tank.has_shield if "has_shield" in tank else false,
+		"defensive_active": tank.defensive_stance_active if "defensive_stance_active" in tank else false
+	}
+
+func _serialize_boss(boss: Node2D) -> Dictionary:
+	if not boss or not is_instance_valid(boss):
+		return {"pos": [0.0, 0.0], "hp": 0, "stamina": 0, "current_target_name": "", "is_slowed": false}
+
+	# Get boss current target name
+	var target_name = ""
+	if "current_target" in boss and boss.current_target and is_instance_valid(boss.current_target):
+		var target = boss.current_target
+		if target.is_in_group("tank"):
+			target_name = "tank"
+		elif target.is_in_group("healer"):
+			target_name = "healer"
+		elif target.is_in_group("sniper"):
+			target_name = "sniper"
+
+	return {
+		"pos": [boss.global_position.x, boss.global_position.y],
+		"hp": boss.health,
+		"stamina": boss.stamina,
+		"current_target_name": target_name,
+		"is_slowed": boss.is_slowed if "is_slowed" in boss else false
+	}
+
 func _check_terminal() -> bool:
 	var boss_alive = _is_alive("boss")
 	var any_agent_alive = _is_alive("tank") or _is_alive("healer") or _is_alive("sniper")
-	return not boss_alive or not any_agent_alive
+
+	# Check for unwinnable solo states
+	# Only healer alive is unwinnable (healer has no damage abilities)
+	# Tank and Sniper CAN win solo now that melee/shot are FREE
+	var only_healer_alive = _is_alive("healer") and not _is_alive("tank") and not _is_alive("sniper")
+
+	return not boss_alive or not any_agent_alive or only_healer_alive
 
 func _get_outcome() -> String:
 	if not _is_alive("boss"):
 		return "victory"
 	if not (_is_alive("tank") or _is_alive("healer") or _is_alive("sniper")):
+		return "defeat"
+	# Check for unwinnable solo states
+	# Only healer alive is unwinnable (healer has no damage abilities)
+	# Tank and Sniper CAN win solo now that melee/shot are FREE
+	if _is_alive("healer") and not _is_alive("tank") and not _is_alive("sniper"):
 		return "defeat"
 	return ""
 
@@ -116,6 +161,11 @@ func execute_action(action: Dictionary) -> bool:
 	var agent = get_tree().get_first_node_in_group(agent_name)
 	if not agent or not is_instance_valid(agent):
 		print("Error: Agent '", agent_name, "' not found")
+		return false
+
+	# Check if agent is alive (health > 0)
+	if agent.health <= 0:
+		print("Error: Agent '", agent_name, "' is dead (HP: ", agent.health, ")")
 		return false
 
 	# Execute ability based on agent type

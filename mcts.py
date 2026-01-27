@@ -64,12 +64,13 @@ def hash_state(state: Dict) -> Tuple:
     """
     Create hashable state key for node lookup and tree reuse.
     Uses aggressive discretization to reduce state space.
+    Now includes strategic information (boss target, buffs, debuffs).
 
     Args:
         state: Game state dict from Godot
 
     Returns:
-        Tuple representing discretized state
+        Tuple representing discretized state (10 dimensions)
     """
     # HP bucketing: 20 HP per bucket
     boss_hp_bucket = min(max(round(state['boss']['hp'] / 20), 0), 25)
@@ -88,11 +89,25 @@ def hash_state(state: Dict) -> Tuple:
         1 if state['sniper']['hp'] > 0 else 0
     )
 
+    # NEW: Boss current target (strategic positioning)
+    boss_target = state.get('boss', {}).get('current_target_name', '')
+    target_code = {'tank': 0, 'healer': 1, 'sniper': 2, '': 3}.get(boss_target, 3)
+
+    # NEW: Tank protection status (shield OR defensive stance)
+    tank_protected = 1 if (state.get('tank', {}).get('has_shield', False) or
+                           state.get('tank', {}).get('defensive_active', False)) else 0
+
+    # NEW: Boss debuffed status
+    boss_slowed = 1 if state.get('boss', {}).get('is_slowed', False) else 0
+
     return (
         boss_hp_bucket,
         tank_hp_bucket, healer_hp_bucket, sniper_hp_bucket,
         tank_stam, healer_stam,
-        agents_alive
+        agents_alive,
+        target_code,      # NEW: 0-3 (tank/healer/sniper/none)
+        tank_protected,   # NEW: 0-1 (protected or not)
+        boss_slowed       # NEW: 0-1 (slowed or not)
     )
 
 
@@ -104,8 +119,17 @@ def get_valid_actions(state: Dict) -> List[Tuple[str, str, str]]:
         state: Current game state
 
     Returns:
-        List of valid actions
+        List of valid actions (empty list if in unwinnable state)
     """
+    # Check for unwinnable state: only healer alive
+    tank_alive = state['tank']['hp'] > 0
+    sniper_alive = state['sniper']['hp'] > 0
+    healer_alive = state['healer']['hp'] > 0
+
+    if healer_alive and not tank_alive and not sniper_alive:
+        # Only healer alive - cannot win, no valid actions
+        return []
+
     valid = []
 
     for action in ACTIONS:
@@ -137,7 +161,7 @@ def get_valid_actions(state: Dict) -> List[Tuple[str, str, str]]:
 
         valid.append(action)
 
-    return valid if valid else [ACTIONS[0]]  # Always return at least one action
+    return valid
 
 
 def action_to_string(action: Tuple[str, str, str]) -> str:
@@ -347,8 +371,9 @@ class MCTSTree:
             new_state['boss']['hp'] = max(0, new_state['boss']['hp'] - 40)
 
         elif ability == "cripple":
-            # Sniper cripple: ~15 damage + slow effect (not modeled)
+            # Sniper cripple: ~15 damage + slow effect
             new_state['boss']['hp'] = max(0, new_state['boss']['hp'] - 15)
+            new_state['boss']['is_slowed'] = True  # NEW: Apply slow debuff
 
         elif ability == "heal":
             # Healer heal: restore ~40 HP
@@ -357,26 +382,47 @@ class MCTSTree:
             new_state[target]['hp'] = min(target_max_hp[target], current_hp + 40)
 
         elif ability == "shield":
-            # Shield buff applied (damage reduction not modeled in state)
-            pass
+            # Shield buff applied - NEW: Model in state
+            if target in ['tank', 'healer', 'sniper']:
+                if target == 'tank':
+                    new_state['tank']['has_shield'] = True
 
         elif ability == "restore":
             # Restore stamina: ~60 stamina
             new_state[target]['stamina'] = min(120, new_state[target]['stamina'] + 60)
 
         elif ability == "taunt":
-            # Taunt effect (aggro not modeled in state)
-            pass
+            # Taunt effect - NEW: Force boss to target tank
+            new_state['boss']['current_target_name'] = 'tank'
 
         elif ability == "defensive":
-            # Defensive stance (damage reduction not modeled)
-            pass
+            # Defensive stance - NEW: Model in state
+            new_state['tank']['defensive_active'] = True
 
-        # Simulate boss retaliation (simplified)
-        # Boss attacks tank most of the time
-        if new_state['boss']['hp'] > 0 and new_state['tank']['hp'] > 0:
-            boss_damage = random.randint(15, 25)  # Boss does 15-25 damage
-            new_state['tank']['hp'] = max(0, new_state['tank']['hp'] - boss_damage)
+        # Simulate boss retaliation with target selection
+        if new_state['boss']['hp'] > 0:
+            # Determine boss target (simplified AI)
+            boss_target = new_state.get('boss', {}).get('current_target_name', '')
+
+            # If no current target, boss picks lowest HP ratio agent
+            if not boss_target or boss_target == '':
+                candidates = []
+                if new_state['tank']['hp'] > 0:
+                    candidates.append(('tank', new_state['tank']['hp'] / 150.0))
+                if new_state['healer']['hp'] > 0:
+                    candidates.append(('healer', new_state['healer']['hp'] / 70.0))
+                if new_state['sniper']['hp'] > 0:
+                    candidates.append(('sniper', new_state['sniper']['hp'] / 80.0))
+
+                if candidates:
+                    # Boss targets agent with lowest HP ratio (most vulnerable)
+                    boss_target, _ = min(candidates, key=lambda x: x[1])
+                    new_state['boss']['current_target_name'] = boss_target
+
+            # Apply boss damage to target
+            if boss_target and new_state.get(boss_target, {}).get('hp', 0) > 0:
+                boss_damage = random.randint(15, 25)  # Boss does 15-25 damage
+                new_state[boss_target]['hp'] = max(0, new_state[boss_target]['hp'] - boss_damage)
 
         # Add small stamina regeneration
         for agent in ['tank', 'healer', 'sniper']:
@@ -441,22 +487,37 @@ class MCTSTree:
 
     def _estimate_reward(self, state: Dict) -> float:
         """
-        Estimate reward for a state using heuristics.
+        Estimate reward using role-based metrics.
+        Called during simulation rollouts (not for actual training rewards).
         """
         reward = 0.0
 
-        # Boss damage dealt (positive)
+        # Boss damage progress (0-500 based on HP ratio)
         boss_hp = state['boss']['hp']
-        reward += (500 - boss_hp)  # More damage = higher reward
+        boss_hp_ratio = boss_hp / 500.0
+        reward += (1.0 - boss_hp_ratio) * 500
 
-        # Agent health (negative for damage taken)
+        # Team safety: role-weighted HP ratios
         tank_hp = state['tank']['hp']
         healer_hp = state['healer']['hp']
         sniper_hp = state['sniper']['hp']
 
-        reward -= (150 - tank_hp) * 2  # Tank HP important
-        reward -= (70 - healer_hp) * 3  # Healer HP critical
-        reward -= (80 - sniper_hp) * 2  # Sniper HP important
+        tank_safety = (tank_hp / 150.0) * 1.0
+        healer_safety = (healer_hp / 70.0) * 2.0
+        sniper_safety = (sniper_hp / 80.0) * 1.5
+
+        # Bonus if boss targets tank (good positioning)
+        target_bonus = 0.5 if state.get('boss', {}).get('current_target_name') == 'tank' else 0.0
+
+        safety_score = (tank_safety + healer_safety + sniper_safety + target_bonus) / 5.0
+        reward += safety_score * 200  # 0-200 based on team safety
+
+        # Stamina management penalties
+        for agent_name, max_stam in [('tank', 80), ('healer', 150), ('sniper', 120)]:
+            stamina = state.get(agent_name, {}).get('stamina', 0)
+            stam_ratio = stamina / float(max_stam) if max_stam > 0 else 0.0
+            if stam_ratio < 0.3:  # Critical stamina
+                reward -= 20
 
         # Terminal state rewards
         if state.get('is_terminal'):
@@ -477,23 +538,23 @@ class MCTSTree:
     def get_best_action(self) -> Tuple[str, str, str]:
         """Return action with highest visit count from root."""
         if self.root is None:
-            print("    Warning: Root is None, using fallback action")
-            return ACTIONS[0]
+            raise ValueError("Cannot get best action: Root is None")
 
         if not self.root.children:
-            # No children created, fallback to random valid action
+            # No children created, try to get a valid action
             print("    Warning: No children in tree, using random valid action")
             valid_actions = get_valid_actions(self.root.state)
             if not valid_actions:
-                print("    Warning: No valid actions, using default action")
-                return ACTIONS[0]
+                raise ValueError("Cannot get best action: No valid actions available (likely unwinnable state)")
             return random.choice(valid_actions)
 
         best_child = self.root.most_visited_child()
         if best_child is None or best_child.action is None:
             print("    Warning: No best child found, using random valid action")
             valid_actions = get_valid_actions(self.root.state)
-            return valid_actions[0] if valid_actions else ACTIONS[0]
+            if not valid_actions:
+                raise ValueError("Cannot get best action: No valid actions available (likely unwinnable state)")
+            return valid_actions[0]
 
         return best_child.action
 

@@ -71,12 +71,21 @@ func _on_velocity_computed(safe_velocity: Vector2):
 	velocity = safe_velocity
 
 func attempt_melee_attack():
+	# Prevent spam - check if already busy
+	if is_attacking or is_moving_to_target or is_taunting:
+		return
+
+	# Melee attack is now FREE (no stamina cost)
+	# if stamina < 20:
+	# 	print(name, ": Not enough stamina to attack!")
+	# 	return
+
 	# Find the boss
 	var boss = get_tree().get_first_node_in_group("boss")
 	if not boss:
 		print(name, ": No boss found!")
 		return
-	
+
 	target = boss
 	is_moving_to_target = true
 	print(name, ": Moving in to attack boss")
@@ -129,14 +138,23 @@ func move_to_attack(delta: float):
 func execute_melee():
 	is_attacking = true
 	velocity = Vector2.ZERO
-	
+
+	# Melee attack is FREE (no stamina cost)
+	# stamina -= 20
+
 	print(name, ": Striking with melee attack!")
-	
+
 	if target and is_instance_valid(target) and target.has_method("take_damage"):
 		target.take_damage(35)
 		print(name, " dealt 35 melee damage to ", target.name)
-	
+
 	await get_tree().create_timer(1.2).timeout
+
+	# Check if tank is still alive after the await
+	if not is_instance_valid(self) or health <= 0:
+		print(name, ": Melee attack interrupted - tank is dead")
+		return
+
 	is_attacking = false
 
 func take_damage(amount: int):
@@ -160,10 +178,14 @@ func apply_shield():
 	print(name, ": Shield active!")
 
 func taunt_boss():
+	# Prevent spam
+	if is_taunting or is_attacking or is_moving_to_target:
+		return
+
 	if stamina < 15:
 		print(name, ": Not enough stamina to taunt!")
 		return
-	
+
 	is_taunting = true
 	stamina -= 15
 	
@@ -179,17 +201,21 @@ func taunt_boss():
 	
 	if boss and is_instance_valid(boss) and boss.has_method("force_target"):
 		boss.force_target(self)
-		print(name, " forced boss to target tank for 5 seconds")
+		print(name, " forced boss to target tank for 3 seconds")
 	
 	is_taunting = false
 
 func activate_defensive_stance():
-	if stamina < 18:
+	# Prevent spam and don't reactivate if already active
+	if defensive_stance_active or is_attacking or is_moving_to_target or is_taunting:
+		return
+
+	if stamina < 10:
 		print(name, ": Not enough stamina for defensive stance!")
 		return
-	
-	stamina -= 18
+
+	stamina -= 10
 	defensive_stance_active = true
-	defensive_stance_timer = 5.0
-	
-	print(name, ": Defensive stance activated! (70% damage reduction for 5s)")
+	defensive_stance_timer = 7.0
+
+	print(name, ": Defensive stance activated! (70% damage reduction for 7s)")

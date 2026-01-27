@@ -18,11 +18,12 @@ from datetime import datetime
 
 import mcts_client as client
 from mcts import MCTSTree, action_to_string, hash_state
+from reward_shaping import RewardShaper
 
 
 def run_episode_with_mcts(tree, iterations, exploration_constant, max_steps=500):
     """
-    Run one training episode using MCTS for decision making.
+    Run one training episode using MCTS for decision making with reward shaping.
 
     Args:
         tree: MCTSTree instance
@@ -35,23 +36,43 @@ def run_episode_with_mcts(tree, iterations, exploration_constant, max_steps=500)
     """
     print("\n=== Starting New Episode ===")
 
+    # Initialize reward shaper with configurable weights
+    reward_shaper = RewardShaper(
+        action_weight=1.0,      # Full weight for immediate action rewards
+        strategic_weight=0.5,   # Half weight for strategic improvements
+        terminal_weight=1.0     # Full weight for episode outcome
+    )
+
     # Reset game
     state = client.reset()
     time.sleep(2)  # Wait for reset to complete
     state = client.get_state()
     tree.set_root(state)
 
-    # Track nodes visited during this episode for later backpropagation
+    # Track nodes and states visited during this episode
     episode_nodes = [tree.root]
+    state_history = [state]  # NEW: Track all states for reward computation
 
     steps = 0
     actions_taken = []
     episode_reward = 0.0
 
     while not state['is_terminal'] and steps < max_steps:
+        # Check for unwinnable state before MCTS search
+        tank_alive = state['tank']['hp'] > 0
+        sniper_alive = state['sniper']['hp'] > 0
+        healer_alive = state['healer']['hp'] > 0
+
+        if healer_alive and not tank_alive and not sniper_alive:
+            print("\n  UNWINNABLE STATE: Only healer alive, aborting episode...")
+            state['is_terminal'] = True
+            state['outcome'] = 'defeat'
+            break
+
         # Run MCTS search from current state
         print(f"\nStep {steps + 1}:")
-        print(f"  Boss HP: {state['boss']['hp']}, Tank HP: {state['tank']['hp']}")
+        print(f"  Boss HP: {state['boss']['hp']}")
+        print(f"  Tank HP: {state['tank']['hp']}, Healer HP: {state['healer']['hp']}, Sniper HP: {state['sniper']['hp']}")
 
         # Pause boss during MCTS search
         client.pause_boss()
@@ -65,7 +86,9 @@ def run_episode_with_mcts(tree, iterations, exploration_constant, max_steps=500)
 
         # Unpause boss and get fresh state
         state = client.unpause_boss()
-        print(f"  Boss unpaused. State: Boss HP: {state['boss']['hp']}, Tank HP: {state['tank']['hp']}")
+        print(f"  Boss unpaused. State:")
+        print(f"    Boss HP: {state['boss']['hp']}")
+        print(f"    Tank HP: {state['tank']['hp']}, Healer HP: {state['healer']['hp']}, Sniper HP: {state['sniper']['hp']}")
 
         # Check if game ended during search
         if state['is_terminal']:
@@ -91,7 +114,7 @@ def run_episode_with_mcts(tree, iterations, exploration_constant, max_steps=500)
         # Melee attacks take longest (movement + attack)
         if action_ability == "melee":
             print(f"  Waiting for tank melee (movement + attack)...")
-            time.sleep(5.0)  # Tank needs to move to boss and attack
+            time.sleep(2.5)  # Tank needs to move to boss and attack
         elif action_ability in ["heal", "restore"]:
             print(f"  Waiting for healer ability cast...")
             time.sleep(2.0)  # Healer cast time + safety margin
@@ -105,7 +128,16 @@ def run_episode_with_mcts(tree, iterations, exploration_constant, max_steps=500)
             time.sleep(1.0)
 
         # Get updated state after action completes
+        prev_state = state_history[-1]  # NEW: Get previous state
         state = client.get_state()
+
+        # NEW: Compute shaped reward for this transition
+        step_reward = reward_shaper.compute_reward(prev_state, best_action, state)
+        episode_reward += step_reward
+        print(f"  Step reward: {step_reward:.2f} (cumulative: {episode_reward:.2f})")
+
+        # NEW: Store new state in history
+        state_history.append(state)
 
         # Update tree root to new state
         tree.update_root_state(state)
@@ -119,22 +151,36 @@ def run_episode_with_mcts(tree, iterations, exploration_constant, max_steps=500)
     print(f"Outcome: {outcome}")
     print(f"Steps: {steps}")
     print(f"Boss HP: {state['boss']['hp']}")
+    print(f"Total episode reward: {episode_reward:.2f}")
 
-    # Backpropagate real episode outcome through visited nodes
+    # NEW: Backpropagate per-step shaped rewards
+    print("Backpropagating per-step rewards...")
+    for i in range(len(episode_nodes) - 1):
+        node = episode_nodes[i]
+        if node and i < len(state_history) - 1 and i < len(actions_taken):
+            prev_state = state_history[i]
+            next_state = state_history[i + 1]
+            action = actions_taken[i]
+
+            # Compute reward for this specific transition
+            step_reward = reward_shaper.compute_reward(prev_state, action, next_state)
+
+            node.visits += 1
+            node.value += step_reward
+
+    # Add discounted terminal reward to all nodes
     if outcome == 'victory':
-        real_reward = 1000.0 - steps  # Bonus for faster victories
-        print(f"Victory! Backpropagating reward: {real_reward:.1f}")
+        terminal_reward = 1000.0 - steps  # Bonus for faster victories
+        print(f"Victory! Adding discounted terminal reward: {terminal_reward * 0.1:.1f}")
     elif outcome == 'defeat':
-        real_reward = -500.0
-        print(f"Defeat. Backpropagating penalty: {real_reward:.1f}")
+        terminal_reward = -500.0
+        print(f"Defeat. Adding discounted terminal penalty: {terminal_reward * 0.1:.1f}")
     else:
-        real_reward = 0.0
+        terminal_reward = 0.0
 
-    # Update all nodes in the episode path with real outcome
     for node in episode_nodes:
         if node:
-            node.visits += 1
-            node.value += real_reward
+            node.value += terminal_reward * 0.1  # 10% of terminal reward per node
 
     return {
         'steps': steps,
@@ -331,7 +377,9 @@ def main():
         state = client.reset()
         time.sleep(2)  # Wait for scene to fully reload
         state = client.get_state()
-        print(f"Connected! Boss HP: {state['boss']['hp']}, Tank HP: {state['tank']['hp']}")
+        print(f"Connected!")
+        print(f"  Boss HP: {state['boss']['hp']}")
+        print(f"  Tank HP: {state['tank']['hp']}, Healer HP: {state['healer']['hp']}, Sniper HP: {state['sniper']['hp']}")
 
         if state['tank']['hp'] == 0 or state['is_terminal']:
             print("\nWARNING: Game appears to be in a terminal state after reset!")
