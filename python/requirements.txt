@@ -1,0 +1,12 @@
+# PyTorch (install from https://pytorch.org/ based on your CUDA version)
+torch>=2.0.0
+
+# PyTorch Geometric
+torch-geometric>=2.4.0
+
+# Additional PyG dependencies (may need separate installation)
+# pip install pyg_lib torch_scatter torch_sparse -f https://data.pyg.org/whl/torch-2.0.0+cu118.html
+
+# Utilities
+numpy>=1.24.0
+tqdm>=4.65.0

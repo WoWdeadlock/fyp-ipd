@@ -3,6 +3,11 @@ extends Node
 const COMMAND_FILE = "user://mcts_command.json"
 const STATE_FILE = "user://mcts_state.json"
 const RESET_FLAG_FILE = "user://mcts_reset_flag.json"
+const MCTS_RESULT_FILE = "user://mcts_result.json"
+const LEGAL_ACTIONS_FILE = "user://legal_actions.json"
+
+# Shadow simulation state for MCTS
+var last_mcts_search: MCTSSearch = null
 
 func _ready():
 	print("MCTS Bridge initialized")
@@ -57,6 +62,18 @@ func _handle_command(cmd: Dictionary):
 		"unpause_boss":
 			_unpause_boss()
 			_write_state()
+		"mcts_search":
+			var iterations = cmd.get("iterations", 1000)
+			var seed_value = cmd.get("seed", -1)
+			var result = run_mcts_search(iterations, seed_value)
+			_write_mcts_result(result)
+		"get_legal_actions":
+			var shadow_state = create_shadow_state()
+			var legal = ActionGenerator.get_legal_actions(shadow_state)
+			_write_legal_actions(legal)
+		"get_shadow_state":
+			var shadow_state = create_shadow_state()
+			_write_shadow_state(shadow_state)
 
 func get_state() -> Dictionary:
 	var tank = get_tree().get_first_node_in_group("tank")
@@ -218,3 +235,167 @@ func _unpause_boss():
 		boss.set_process(true)
 		boss.set_physics_process(true)
 		print("Boss unpaused")
+
+
+# ============================================================================
+# SHADOW SIMULATION INTEGRATION
+# ============================================================================
+
+func create_shadow_state() -> ShadowState:
+	## Convert current real game state to a shadow state for MCTS.
+	var shadow = ShadowState.new()
+
+	var tank = get_tree().get_first_node_in_group("tank")
+	var healer = get_tree().get_first_node_in_group("healer")
+	var sniper = get_tree().get_first_node_in_group("sniper")
+	var boss_node = get_tree().get_first_node_in_group("boss")
+
+	# Create shadow agents
+	shadow.agents.append(_create_shadow_tank(tank))
+	shadow.agents.append(_create_shadow_healer(healer))
+	shadow.agents.append(_create_shadow_sniper(sniper))
+	shadow.boss = _create_shadow_boss(boss_node)
+
+	return shadow
+
+
+func _create_shadow_tank(tank: Node2D) -> ShadowAgent:
+	var shadow = ShadowAgent.create_tank()
+
+	if tank and is_instance_valid(tank) and tank.health > 0:
+		shadow.hp = tank.health
+		shadow.stamina = tank.stamina
+
+		# Check for defensive stance
+		if "defensive_stance_active" in tank and tank.defensive_stance_active:
+			if "defensive_stance_timer" in tank:
+				shadow.defensive_stance_ticks = int(tank.defensive_stance_timer * 2.0)
+			else:
+				shadow.defensive_stance_ticks = 14  # Default 7 seconds
+
+		# Check for shield
+		if "has_shield" in tank and tank.has_shield:
+			if "shield_timer" in tank:
+				shadow.shield_ticks = int(tank.shield_timer * 2.0)
+			else:
+				shadow.shield_ticks = 12  # Default 6 seconds
+	else:
+		shadow.hp = 0
+
+	return shadow
+
+
+func _create_shadow_healer(healer: Node2D) -> ShadowAgent:
+	var shadow = ShadowAgent.create_healer()
+
+	if healer and is_instance_valid(healer) and healer.health > 0:
+		shadow.hp = healer.health
+		shadow.stamina = healer.stamina
+	else:
+		shadow.hp = 0
+
+	return shadow
+
+
+func _create_shadow_sniper(sniper: Node2D) -> ShadowAgent:
+	var shadow = ShadowAgent.create_sniper()
+
+	if sniper and is_instance_valid(sniper) and sniper.health > 0:
+		shadow.hp = sniper.health
+		shadow.stamina = sniper.stamina
+
+		# Check for shield
+		if "has_shield" in sniper and sniper.has_shield:
+			if "shield_timer" in sniper:
+				shadow.shield_ticks = int(sniper.shield_timer * 2.0)
+			else:
+				shadow.shield_ticks = 12  # Default 6 seconds
+	else:
+		shadow.hp = 0
+
+	return shadow
+
+
+func _create_shadow_boss(boss_node: Node2D) -> ShadowBoss:
+	var shadow = ShadowBoss.create()
+
+	if boss_node and is_instance_valid(boss_node) and boss_node.health > 0:
+		shadow.hp = boss_node.health
+		shadow.stamina = boss_node.stamina
+
+		# Check for slow effect
+		if "is_slowed" in boss_node and boss_node.is_slowed:
+			shadow.is_slowed = true
+			if "slow_timer" in boss_node:
+				shadow.slow_ticks = int(boss_node.slow_timer * 2.0)
+			else:
+				shadow.slow_ticks = 16  # Default 8 seconds
+
+		# Check for taunt/forced target
+		if "forced_target" in boss_node and boss_node.forced_target:
+			shadow.is_taunted = true
+			if "forced_target_timer" in boss_node:
+				shadow.taunt_ticks = int(boss_node.forced_target_timer * 2.0)
+			else:
+				shadow.taunt_ticks = 10  # Default 5 seconds
+
+			# Determine which agent is the taunt target
+			var target = boss_node.forced_target
+			if target.is_in_group("tank"):
+				shadow.taunt_target = 0
+			elif target.is_in_group("healer"):
+				shadow.taunt_target = 1
+			elif target.is_in_group("sniper"):
+				shadow.taunt_target = 2
+	else:
+		shadow.hp = 0
+
+	return shadow
+
+
+func run_mcts_search(iterations: int = 1000, deterministic_seed: int = -1) -> Dictionary:
+	## Run MCTS search on shadow state and return the best action with stats.
+	var shadow_state = create_shadow_state()
+
+	# Set deterministic seed if provided
+	if deterministic_seed >= 0:
+		shadow_state.set_deterministic_seed(deterministic_seed)
+
+	# Create and run search
+	last_mcts_search = MCTSSearch.new(shadow_state, iterations)
+
+	if deterministic_seed >= 0:
+		last_mcts_search.set_seed(deterministic_seed)
+
+	var result = last_mcts_search.search_with_stats()
+
+	print("MCTS Search complete: ", result.root_visits, " visits, best action: ", result.best_action)
+
+	return result
+
+
+func _write_mcts_result(result: Dictionary):
+	var file = FileAccess.open(MCTS_RESULT_FILE, FileAccess.WRITE)
+	if file:
+		file.store_string(JSON.stringify(result))
+		file.close()
+	else:
+		print("Error: Could not write MCTS result file")
+
+
+func _write_legal_actions(actions: Array):
+	var file = FileAccess.open(LEGAL_ACTIONS_FILE, FileAccess.WRITE)
+	if file:
+		file.store_string(JSON.stringify({"actions": actions}))
+		file.close()
+	else:
+		print("Error: Could not write legal actions file")
+
+
+func _write_shadow_state(shadow_state: ShadowState):
+	var file = FileAccess.open(STATE_FILE, FileAccess.WRITE)
+	if file:
+		file.store_string(JSON.stringify(shadow_state.to_dict()))
+		file.close()
+	else:
+		print("Error: Could not write shadow state file")
