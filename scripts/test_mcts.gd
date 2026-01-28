@@ -69,16 +69,16 @@ func test_shadow_boss() -> bool:
 	var boss = ShadowBoss.create()
 	var passed = true
 
-	if boss.hp != 600 or boss.max_hp != 600:
-		print("  FAIL: Boss HP incorrect")
+	if boss.hp != 650 or boss.max_hp != 650:
+		print("  FAIL: Boss HP incorrect (expected 650)")
 		passed = false
 
-	if boss.RANGED_DAMAGE != 25 or boss.MELEE_DAMAGE != 45:
-		print("  FAIL: Boss damage values incorrect (expected 25 ranged, 45 melee)")
+	if boss.RANGED_DAMAGE != 20 or boss.MELEE_DAMAGE != 30:
+		print("  FAIL: Boss damage values incorrect (expected 20 ranged, 30 melee)")
 		passed = false
 
 	if passed:
-		print("  PASS: Boss stats correct (buffed: 45 melee, 25 ranged)")
+		print("  PASS: Boss stats correct (30 melee, 20 ranged)")
 
 	return passed
 

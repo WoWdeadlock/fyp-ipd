@@ -178,9 +178,9 @@ func _apply_agent_action(agent_idx: int, action: Dictionary) -> void:
 func _apply_tank_action(agent: ShadowAgent, ability: String) -> void:
 	match ability:
 		"melee":
-			# Free, 35 damage to boss
+			# Free, 30 damage to boss
 			if boss.is_alive():
-				boss.take_damage(35)
+				boss.take_damage(30)
 
 		"taunt":
 			# 15 stamina, force boss to target tank for 5s
@@ -198,9 +198,9 @@ func _apply_healer_action(agent: ShadowAgent, ability: String, target_name: Stri
 
 	match ability:
 		"heal":
-			# Free, 50 HP to target
+			# Free, 40 HP to target
 			if target and target.is_alive():
-				target.heal(50)
+				target.heal(40)
 
 		"shield":
 			# 30 stamina, 50% damage reduction for 6s
@@ -216,9 +216,9 @@ func _apply_healer_action(agent: ShadowAgent, ability: String, target_name: Stri
 func _apply_sniper_action(agent: ShadowAgent, ability: String) -> void:
 	match ability:
 		"shot":
-			# Free, 45 damage to boss
+			# Free, 40 damage to boss
 			if boss.is_alive():
-				boss.take_damage(45)
+				boss.take_damage(40)
 
 		"cripple":
 			# 40 stamina, 25 damage + slow for 8s
@@ -234,7 +234,7 @@ func _apply_sniper_action(agent: ShadowAgent, ability: String) -> void:
 
 func _process_boss_turn() -> void:
 	## Simulate boss AI for one turn.
-	## Boss can use BOTH melee and ranged attacks if available.
+	## Boss does ONE attack per turn (matches real game state machine).
 	if not boss.is_alive():
 		return
 
@@ -242,23 +242,22 @@ func _process_boss_turn() -> void:
 	if not boss.can_attack_melee() and not boss.can_attack_ranged():
 		return
 
-	# Melee attack (if available)
-	if boss.can_attack_melee():
-		var target_idx = _select_boss_target()
-		if target_idx >= 0:
-			var target = agents[target_idx]
-			if target.is_alive():
-				var damage = boss.do_melee_attack()
-				target.take_damage(damage)
+	var target_idx = _select_boss_target()
+	if target_idx < 0:
+		return
+	
+	var target = agents[target_idx]
+	if not target.is_alive():
+		return
 
-	# Ranged attack on potentially different target (if available)
-	if boss.can_attack_ranged():
-		var target_idx = _select_boss_target()
-		if target_idx >= 0:
-			var target = agents[target_idx]
-			if target.is_alive():
-				var damage = boss.do_ranged_attack()
-				target.take_damage(damage)
+	# Choose attack type based on simple heuristic (matches real boss behavior)
+	# Prefer melee if available, otherwise ranged
+	if boss.can_attack_melee():
+		var damage = boss.do_melee_attack()
+		target.take_damage(damage)
+	elif boss.can_attack_ranged():
+		var damage = boss.do_ranged_attack()
+		target.take_damage(damage)
 
 
 func _select_boss_target() -> int:

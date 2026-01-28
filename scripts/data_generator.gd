@@ -4,11 +4,11 @@ extends Node
 ## Runs MCTS simulations and exports (state, action) pairs.
 
 # Configuration
-@export var num_episodes: int = 10
-@export var mcts_iterations: int = 100
+@export var num_episodes: int = 100
+@export var mcts_iterations: int = 200
 @export var max_steps_per_episode: int = 400
 @export var output_dir: String = "user://training_data"
-@export var samples_per_file: int = 1000
+@export var samples_per_file: int = 5000
 @export var use_deterministic: bool = true
 @export var start_seed: int = 42
 
@@ -36,6 +36,12 @@ func _ready():
 	print("  Episodes: ", num_episodes)
 	print("  MCTS iterations: ", mcts_iterations)
 	print("  Max steps/episode: ", max_steps_per_episode)
+	print("\nPress G to start generation, or wait 2 seconds for auto-start...")
+	
+	# Auto-start after a short delay
+	await get_tree().create_timer(2.0).timeout
+	if not is_generating:
+		start_generation()
 
 
 func start_generation():

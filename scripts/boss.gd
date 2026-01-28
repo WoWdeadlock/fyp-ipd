@@ -182,7 +182,7 @@ func attack_target(enemy: Node2D, delta: float) -> void:
 		velocity = Vector2.ZERO
 		nav_agent.set_velocity(Vector2.ZERO)
 		current_state = State.BUSY
-		# Deal melee damage to the target
+	# Deal melee damage to the target
 		if enemy and is_instance_valid(enemy) and enemy.has_method("take_damage"):
 			enemy.take_damage(30)
 			print("Boss dealt 30 damage to ", enemy.name)

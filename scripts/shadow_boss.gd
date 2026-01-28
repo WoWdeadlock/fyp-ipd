@@ -4,8 +4,8 @@ extends RefCounted
 ## Pure-data boss representation for MCTS shadow simulation.
 ## No Godot nodes, physics, or navigation - just integers and floats.
 
-var hp: int = 600
-var max_hp: int = 600
+var hp: int = 650
+var max_hp: int = 650
 var stamina: float = 300.0
 var max_stamina: int = 300
 var stamina_regen: float = 7.5  # Per tick (15/s at 2 ticks/s)
@@ -22,9 +22,9 @@ var is_taunted: bool = false
 var taunt_ticks: int = 0      # 5 seconds = 10 ticks
 var taunt_target: int = -1    # Agent index: 0=tank, 1=healer, 2=sniper
 
-# Attack damage values (buffed for challenge)
-const RANGED_DAMAGE: int = 25
-const MELEE_DAMAGE: int = 45
+# Attack damage values
+const RANGED_DAMAGE: int = 20
+const MELEE_DAMAGE: int = 30
 const RANGED_COOLDOWN_TICKS: int = 3
 const MELEE_COOLDOWN_TICKS: int = 2
 

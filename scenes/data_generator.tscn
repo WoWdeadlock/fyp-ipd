@@ -4,9 +4,9 @@
 
 [node name="DataGenerator" type="Node"]
 script = ExtResource("1_datagen")
-num_episodes = 10
-mcts_iterations = 100
+num_episodes = 100
+mcts_iterations = 200
 max_steps_per_episode = 400
-samples_per_file = 1000
+samples_per_file = 5000
 use_deterministic = true
 start_seed = 42
