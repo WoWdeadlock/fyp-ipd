@@ -264,7 +264,13 @@ func _is_game_over() -> bool:
 
 func _on_game_over():
 	var elapsed = (Time.get_ticks_msec() - start_time) / 1000.0
-	var victory = boss and is_instance_valid(boss) and boss.health <= 0
+	
+	# Check victory - boss is dead if it's freed OR health <= 0
+	var victory = false
+	if not boss or not is_instance_valid(boss):
+		victory = true  # Boss was freed (defeated)
+	elif boss.health <= 0:
+		victory = true  # Boss health depleted
 
 	print("\n" + "=".repeat(50))
 	print("GAME OVER - ", "VICTORY!" if victory else "DEFEAT")
@@ -274,7 +280,7 @@ func _on_game_over():
 	print("Total damage dealt: ", total_damage_dealt)
 
 	if boss and is_instance_valid(boss):
-		print("Boss HP remaining: ", boss.health, "/600")
+		print("Boss HP remaining: ", boss.health, "/650")
 
 	print("\nAction breakdown:")
 	for action_name in actions_taken:

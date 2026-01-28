@@ -21,10 +21,10 @@ var slow_timer: float = 0.0
 var forced_target: Node2D = null
 var forced_target_timer: float = 0.0
 
-@export var max_health: int = 600
+@export var max_health: int = 650
 @export var max_stamina: int = 300
 
-@export var health: int = 600:
+@export var health: int = 650:
 	set(value):
 		health = clamp(value, 0, max_health)
 		if health_bar:
@@ -116,8 +116,8 @@ func execute_ranged_attack(delta: float):
 		print("State: RANGED - Drawing bow")
 
 		if current_target.has_method("take_damage"):
-			current_target.take_damage(15)
-			print("Boss dealt 15 ranged damage to ", current_target.name)
+			current_target.take_damage(20)
+			print("Boss dealt 20 ranged damage to ", current_target.name)
 
 		is_in_position = false
 		await get_tree().create_timer(2.0).timeout
@@ -184,8 +184,8 @@ func attack_target(enemy: Node2D, delta: float) -> void:
 		current_state = State.BUSY
 		# Deal melee damage to the target
 		if enemy and is_instance_valid(enemy) and enemy.has_method("take_damage"):
-			enemy.take_damage(25)
-			print("Boss dealt 25 damage to ", enemy.name)
+			enemy.take_damage(30)
+			print("Boss dealt 30 damage to ", enemy.name)
 		await get_tree().create_timer(1.0).timeout
 
 		# Check if boss is still alive after the await

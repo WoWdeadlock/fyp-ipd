@@ -145,8 +145,8 @@ func execute_melee():
 	print(name, ": Striking with melee attack!")
 
 	if target and is_instance_valid(target) and target.has_method("take_damage"):
-		target.take_damage(35)
-		print(name, " dealt 35 melee damage to ", target.name)
+		target.take_damage(30)
+		print(name, " dealt 30 melee damage to ", target.name)
 
 	await get_tree().create_timer(1.2).timeout
 

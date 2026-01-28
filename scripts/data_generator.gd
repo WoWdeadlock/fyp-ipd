@@ -5,8 +5,8 @@ extends Node
 
 # Configuration
 @export var num_episodes: int = 10
-@export var mcts_iterations: int = 500
-@export var max_steps_per_episode: int = 200
+@export var mcts_iterations: int = 100
+@export var max_steps_per_episode: int = 400
 @export var output_dir: String = "user://training_data"
 @export var samples_per_file: int = 1000
 @export var use_deterministic: bool = true
@@ -63,18 +63,19 @@ func start_generation():
 
 func _generate_batch():
 	## Generate a batch of episodes.
-	var batch_size = mini(10, num_episodes - current_episode)
+	var batch_size = mini(5, num_episodes - current_episode)
 
 	for i in range(batch_size):
 		if current_episode >= num_episodes:
 			break
 
+		print("\n[Episode ", current_episode + 1, "/", num_episodes, "] Starting...")
 		_run_episode(current_episode)
 		current_episode += 1
+		print("[Episode ", current_episode, "/", num_episodes, "] Complete. Samples: ", data_buffer.size())
 
-		# Progress update every 10 episodes
-		if current_episode % 10 == 0:
-			_print_progress()
+		# Yield to prevent freezing
+		await get_tree().process_frame
 
 	# Continue or finish
 	if current_episode < num_episodes:

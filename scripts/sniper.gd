@@ -142,8 +142,8 @@ func execute_shot():
 	print(name, ": Taking the shot!")
 
 	if target and is_instance_valid(target) and target.has_method("take_damage"):
-		target.take_damage(45)
-		print(name, " dealt 45 sniper damage to ", target.name)
+		target.take_damage(40)
+		print(name, " dealt 40 sniper damage to ", target.name)
 
 	await get_tree().create_timer(1.5).timeout
 

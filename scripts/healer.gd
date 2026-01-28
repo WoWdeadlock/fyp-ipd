@@ -83,8 +83,8 @@ func heal_target(target_type: String):
 		return
 
 	if target_node and is_instance_valid(target_node) and target_node.has_method("heal"):
-		target_node.heal(50)
-		print(name, " healed ", target_node.name, " for 50 HP")
+		target_node.heal(40)
+		print(name, " healed ", target_node.name, " for 40 HP")
 
 	is_healing = false
 
