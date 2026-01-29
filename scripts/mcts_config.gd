@@ -2,7 +2,7 @@ class_name MCTSConfig
 extends RefCounted
 
 ## Single source of truth for all MCTS parameters.
-## Both mcts_ai_controller.gd and data_generator.gd read from here.
+## Referenced by mcts_ai_controller.gd, mcts_search.gd, and record_progress.gd.
 
 # Search parameters
 const ITERATIONS: int = 500

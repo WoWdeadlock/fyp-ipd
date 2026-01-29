@@ -3,8 +3,6 @@ extends RefCounted
 
 ## Ability-agnostic evaluation for MCTS.
 ## Scores states using only generic signals (HP, survival, time).
-## No per-ability heuristics — new abilities are valued automatically
-## through one-step simulation delta in get_action_value_estimate().
 
 # Terminal rewards
 const WIN_REWARD: float = 1000.0
@@ -74,21 +72,3 @@ static func normalize_reward(raw_reward: float) -> float:
 static func evaluate_normalized(state: ShadowState) -> float:
 	## Evaluate and normalize in one call.
 	return normalize_reward(evaluate(state))
-
-
-static func get_action_value_estimate(state: ShadowState, action: Dictionary) -> float:
-	## Estimate action value by simulating forward to the end of the current tick.
-	## Applies the action, fills remaining micro-turns with wait, then lets the
-	## boss act and timers tick. This captures delayed effects (slow, taunt, etc.)
-	## without naming any specific ability.
-	var score_before = evaluate(state)
-
-	# Apply the action
-	var sim = state.step(action)
-
-	# Fill remaining micro-turns with wait so the full tick completes
-	while sim.micro_turn_index != 0 and not sim.is_terminal():
-		var agent_name = sim.AGENT_NAMES[sim.micro_turn_index]
-		sim = sim.step({"agent": agent_name, "ability": "wait"})
-
-	return (evaluate(sim) - score_before) * 10.0

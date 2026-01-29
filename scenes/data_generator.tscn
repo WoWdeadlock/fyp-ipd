@@ -1,6 +1,6 @@
-[gd_scene load_steps=2 format=3 uid="uid://7axm8fqrenuh"]
+[gd_scene load_steps=2 format=3 uid="uid://c27nohxx02cak"]
 
-[ext_resource type="Script" uid="uid://bv0d76eutd7jh" path="res://scripts/data_generator.gd" id="1_datagen"]
+[ext_resource type="Script" path="res://scripts/data_generator.gd" id="1_datagen"]
 
 [node name="DataGenerator" type="Node"]
 script = ExtResource("1_datagen")

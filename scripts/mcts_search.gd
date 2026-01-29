@@ -119,44 +119,6 @@ func _simulate(node: MCTSNode) -> float:
 	return RewardCalculator.evaluate_normalized(state)
 
 
-func _simulate_with_heuristic(node: MCTSNode) -> float:
-	## Alternative simulation using heuristic-guided rollouts.
-	## Tends to find better solutions but slower per iteration.
-	if node == null:
-		return 0.0
-
-	var state = node.state.clone()
-	var depth = 0
-
-	while not state.is_terminal() and depth < max_rollout_depth:
-		var actions = ActionGenerator.get_legal_actions(state)
-		if actions.is_empty():
-			break
-
-		# Weighted random selection based on action value estimates
-		var best_action = actions[0]
-		var best_value = -INF
-
-		for action in actions:
-			var value = RewardCalculator.get_action_value_estimate(state, action)
-			# Add some randomness to avoid deterministic behavior
-			var noise: float
-			if use_seeded_rng and rng:
-				noise = rng.randf() * 5.0
-			else:
-				noise = randf() * 5.0
-			value += noise
-
-			if value > best_value:
-				best_value = value
-				best_action = action
-
-		state = state.step(best_action)
-		depth += 1
-
-	return RewardCalculator.evaluate_normalized(state)
-
-
 func _backpropagate(node: MCTSNode, reward: float) -> void:
 	## Backpropagation phase: Update all nodes from leaf to root.
 	while node != null:
