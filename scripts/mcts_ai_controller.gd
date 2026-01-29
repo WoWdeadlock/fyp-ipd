@@ -14,7 +14,7 @@ extends Node
 @export var record_data: bool = false
 @export var num_record_episodes: int = 10
 @export var output_dir: String = "user://training_data"
-@export var time_scale: float = 50.0
+@export var time_scale: float = 3.0
 
 # References
 var mcts_bridge: Node = null
@@ -62,6 +62,9 @@ func _ready():
 		print("ERROR: Could not find MCTSBridge!")
 		enabled = false
 		return
+
+	# Override settings from command line (for parallel runs)
+	_parse_cmdline_args()
 
 	# Start recording if enabled
 	if record_data and not RecordProgress.is_recording:
@@ -339,3 +342,33 @@ func _on_game_over():
 		get_tree().reload_current_scene()
 	else:
 		RecordProgress.finish_recording()
+		if _should_quit_on_finish():
+			get_tree().quit()
+
+
+func _parse_cmdline_args():
+	## Parse command line args for parallel batch runs.
+	## Usage: godot --path <project> -- --record --episodes 50 --output user://training_data/worker_0
+	var args = OS.get_cmdline_user_args()
+	var i = 0
+	while i < args.size():
+		match args[i]:
+			"--record":
+				record_data = true
+			"--episodes":
+				i += 1
+				if i < args.size():
+					num_record_episodes = int(args[i])
+			"--output":
+				i += 1
+				if i < args.size():
+					output_dir = args[i]
+			"--timescale":
+				i += 1
+				if i < args.size():
+					time_scale = float(args[i])
+		i += 1
+
+
+func _should_quit_on_finish() -> bool:
+	return OS.get_cmdline_user_args().has("--record")

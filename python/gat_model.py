@@ -156,6 +156,10 @@ class ActionGAT(nn.Module):
         """
         logits = self.forward(x, edge_index, edge_attr, batch, agent_idx)
 
+        # Reshape legal_mask if batched as flat 1D by PyG
+        if legal_mask.dim() == 1 and logits.dim() == 2:
+            legal_mask = legal_mask.view(logits.size(0), -1)
+
         # Mask illegal actions
         mask = (legal_mask == 0)
         logits = logits.masked_fill(mask, float('-inf'))

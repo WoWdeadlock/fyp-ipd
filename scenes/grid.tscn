@@ -1,4 +1,4 @@
-[gd_scene load_steps=16 format=4 uid="uid://loufb8remmri"]
+[gd_scene load_steps=17 format=4 uid="uid://loufb8remmri"]
 
 [ext_resource type="Texture2D" uid="uid://uvn3maqhnm6q" path="res://assets/tiles_prototype.png" id="1_t5fjg"]
 [ext_resource type="PackedScene" uid="uid://d1rgyt3hwccse" path="res://scenes/agents/healer.tscn" id="2_gnlqp"]
@@ -11,6 +11,7 @@
 [ext_resource type="Script" uid="uid://bl01w5yeu46ld" path="res://scripts/mcts_bridge.gd" id="8_mcts"]
 [ext_resource type="Script" uid="uid://d23v0ciahl3vc" path="res://scripts/mcts_ai_controller.gd" id="9_aictl"]
 [ext_resource type="Script" uid="uid://b1yd83pfdjcc8" path="res://scripts/random_ai_controller.gd" id="10_rndctl"]
+[ext_resource type="Script" uid="uid://dv554jvgeputn" path="res://scripts/gat_ai_controller.gd" id="11_gatctl"]
 
 [sub_resource type="NavigationPolygon" id="NavigationPolygon_w88cy"]
 vertices = PackedVector2Array(16, 16, -16, 16, -16, -16, 16, -16)
@@ -63,6 +64,12 @@ script = ExtResource("8_mcts")
 [node name="AIController" type="Node" parent="."]
 script = ExtResource("9_aictl")
 record_data = true
+num_record_episodes = 100
 
 [node name="RandomController" type="Node" parent="."]
 script = ExtResource("10_rndctl")
+enabled = false
+
+[node name="GATController" type="Node" parent="."]
+script = ExtResource("11_gatctl")
+enabled = false

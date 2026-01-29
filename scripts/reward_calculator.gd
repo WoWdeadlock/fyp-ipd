@@ -9,12 +9,12 @@ const WIN_REWARD: float = 1000.0
 const LOSE_REWARD: float = -1000.0
 
 # Weights
-const BOSS_DAMAGE_WEIGHT: float = 500.0
-const AGENT_HP_WEIGHT: float = 50.0
-const ALIVE_BONUS: float = 100.0
-const LOW_STAMINA_PENALTY: float = 5.0
+const BOSS_DAMAGE_WEIGHT: float = 800.0
+const AGENT_HP_WEIGHT: float = 10.0
+const ALIVE_BONUS: float = 50.0
+const LOW_STAMINA_PENALTY: float = 0.0
 const LOW_STAMINA_THRESHOLD: float = 0.2
-const TIME_PENALTY_PER_TICK: float = 2.0
+const TIME_PENALTY_PER_TICK: float = 0.5
 
 
 static func evaluate(state: ShadowState) -> float:
@@ -65,7 +65,9 @@ static func get_terminal_reward(state: ShadowState) -> float:
 
 static func normalize_reward(raw_reward: float) -> float:
 	## Normalize reward to [0, 1] range for UCB calculation.
-	var normalized = (raw_reward + 1000.0) / 2200.0
+	## Range: worst = LOSE_REWARD (-1000), best = WIN_REWARD + speed (1100)
+	## Non-terminal range roughly [-300, 1000] with current weights
+	var normalized = (raw_reward + 1000.0) / 2100.0
 	return clampf(normalized, 0.0, 1.0)
 
 

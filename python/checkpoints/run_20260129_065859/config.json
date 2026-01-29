@@ -1,0 +1,40 @@
+{
+  "data_dir": "C:\\Users\\User\\AppData\\Roaming\\Godot\\app_userdata\\IPD\\training_data\\",
+  "epochs": 100,
+  "batch_size": 64,
+  "lr": 0.001,
+  "hidden_dim": 64,
+  "num_heads": 4,
+  "num_layers": 3,
+  "dropout": 0.1,
+  "output_dir": "./checkpoints",
+  "device": "cpu",
+  "num_params": 35850,
+  "dataset_meta": {
+    "action_names": [
+      "wait",
+      "melee",
+      "taunt",
+      "defensive",
+      "heal",
+      "shield",
+      "restore",
+      "shot",
+      "cripple",
+      "power"
+    ],
+    "defeats": 0,
+    "edge_feature_dim": 6,
+    "generation_time_seconds": 83.368,
+    "mcts_iterations": 500,
+    "node_feature_dim": 11,
+    "num_actions": 10,
+    "num_files": 10,
+    "samples_per_file": 5000,
+    "source": "live_game",
+    "total_episodes": 10,
+    "total_samples": 225,
+    "victories": 10,
+    "win_rate": 1.0
+  }
+}
