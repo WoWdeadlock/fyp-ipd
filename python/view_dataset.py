@@ -13,19 +13,18 @@ APPDATA = os.environ.get('APPDATA', '')
 DATA_DIR = Path(APPDATA) / "Godot" / "app_userdata" / "IPD" / "training_data"
 
 # Action ID to name mapping
+# Matches GraphExporter.ACTION_TO_ID in graph_exporter.gd
 ACTION_NAMES = {
-    0: "tank_wait",
-    1: "tank_melee", 
-    2: "tank_taunt",
-    3: "tank_defensive",
-    4: "healer_wait",
-    5: "healer_heal",
-    6: "healer_shield",
-    7: "healer_restore",
-    8: "sniper_wait",
-    9: "sniper_shot",
-    10: "sniper_cripple",
-    11: "sniper_power"
+    0: "wait",
+    1: "melee",
+    2: "taunt",
+    3: "defensive",
+    4: "heal",
+    5: "shield",
+    6: "restore",
+    7: "shot",
+    8: "cripple",
+    9: "power"
 }
 
 def load_all_data(data_dir: Path) -> list:

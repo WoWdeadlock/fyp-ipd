@@ -9,7 +9,7 @@
 [ext_resource type="PackedScene" uid="uid://ifrxe8fd4dbv" path="res://scenes/boss/boss.tscn" id="6_726jt"]
 [ext_resource type="Script" uid="uid://qfpj32fs5e8v" path="res://scripts/tank.gd" id="7_4hvkd"]
 [ext_resource type="Script" uid="uid://bl01w5yeu46ld" path="res://scripts/mcts_bridge.gd" id="8_mcts"]
-[ext_resource type="Script" uid="uid://c3xr8k2m5y7ov" path="res://scripts/mcts_ai_controller.gd" id="9_aictl"]
+[ext_resource type="Script" uid="uid://d23v0ciahl3vc" path="res://scripts/mcts_ai_controller.gd" id="9_aictl"]
 
 [sub_resource type="NavigationPolygon" id="NavigationPolygon_w88cy"]
 vertices = PackedVector2Array(16, 16, -16, 16, -16, -16, 16, -16)
@@ -61,6 +61,5 @@ script = ExtResource("8_mcts")
 
 [node name="AIController" type="Node" parent="."]
 script = ExtResource("9_aictl")
-enabled = true
-decision_interval = 2.0
-show_debug = true
+record_data = true
+time_scale = 100.0

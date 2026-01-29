@@ -1,12 +1,8 @@
-[gd_scene load_steps=2 format=3 uid="uid://data_gen_scene"]
+[gd_scene load_steps=2 format=3 uid="uid://7axm8fqrenuh"]
 
-[ext_resource type="Script" path="res://scripts/data_generator.gd" id="1_datagen"]
+[ext_resource type="Script" uid="uid://bv0d76eutd7jh" path="res://scripts/data_generator.gd" id="1_datagen"]
 
 [node name="DataGenerator" type="Node"]
 script = ExtResource("1_datagen")
-num_episodes = 100
-mcts_iterations = 200
-max_steps_per_episode = 400
-samples_per_file = 5000
-use_deterministic = true
-start_seed = 42
+num_episodes = 10
+start_seed = 32

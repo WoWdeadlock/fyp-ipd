@@ -100,11 +100,12 @@ func tick_timers() -> void:
 	# Stamina regeneration
 	stamina = minf(stamina + stamina_regen, float(max_stamina))
 
-	# Attack cooldowns
+	# Attack cooldowns (slow halves cooldown recovery rate)
+	var cooldown_tick := 0 if is_slowed and slow_ticks % 2 == 0 else 1
 	if ranged_cooldown > 0:
-		ranged_cooldown -= 1
+		ranged_cooldown -= cooldown_tick
 	if melee_cooldown > 0:
-		melee_cooldown -= 1
+		melee_cooldown -= cooldown_tick
 
 	# Slow effect
 	if slow_ticks > 0:

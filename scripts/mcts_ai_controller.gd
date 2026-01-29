@@ -1,14 +1,20 @@
 extends Node
 
-## MCTS AI Controller - Watches the AI play the game in real-time.
-## Attach to the main game scene to enable AI control.
+## MCTS AI Controller - Plays the game in real-time with MCTS decisions.
+## Optionally records training data from live gameplay.
 
 # Configuration
 @export var enabled: bool = true
-@export var mcts_iterations: int = 500
+@export var mcts_iterations: int = MCTSConfig.ITERATIONS
 @export var decision_interval: float = 2.0  # Seconds between decisions
 @export var use_deterministic: bool = false
 @export var show_debug: bool = true
+
+# Recording configuration
+@export var record_data: bool = false
+@export var num_record_episodes: int = 10
+@export var output_dir: String = "user://training_data"
+@export var time_scale: float = 50.0
 
 # References
 var mcts_bridge: Node = null
@@ -47,36 +53,43 @@ func _ready():
 		mcts_bridge = get_tree().get_first_node_in_group("mcts_bridge")
 
 	if not mcts_bridge:
-		# Try to find it as sibling
 		for child in get_parent().get_children():
 			if child.has_method("run_mcts_search"):
 				mcts_bridge = child
 				break
 
-	if mcts_bridge:
-		print("\n" + "=".repeat(50))
-		print("MCTS AI CONTROLLER ACTIVE")
-		print("=".repeat(50))
-		print("Press SPACE to toggle AI on/off")
-		print("Press R to reset the match")
-		print("=".repeat(50) + "\n")
-		start_time = Time.get_ticks_msec()
-	else:
+	if not mcts_bridge:
 		print("ERROR: Could not find MCTSBridge!")
 		enabled = false
+		return
+
+	# Start recording if enabled
+	if record_data and not RecordProgress.is_recording:
+		RecordProgress.start_recording(num_record_episodes, output_dir)
+		Engine.time_scale = time_scale
+		show_debug = false  # Reduce noise during batch recording
+
+	print("\n" + "=".repeat(50))
+	print("MCTS AI CONTROLLER ACTIVE")
+	if RecordProgress.is_recording:
+		print("RECORDING: Episode %d/%d | Time scale: %.1fx" % [
+			RecordProgress.current_episode + 1,
+			RecordProgress.num_episodes,
+			time_scale
+		])
+	print("=".repeat(50))
+	start_time = Time.get_ticks_msec()
 
 
 func _process(delta):
 	if not enabled or is_executing:
 		return
 
-	# Check for game over
 	if _is_game_over():
 		_on_game_over()
 		enabled = false
 		return
 
-	# Decision timing
 	time_since_last_decision += delta
 
 	if time_since_last_decision >= decision_interval:
@@ -98,7 +111,7 @@ func _make_decision():
 	## Run MCTS and execute the best action for each agent.
 	is_executing = true
 
-	# Create shadow state
+	# Create shadow state from live game
 	var shadow_state = mcts_bridge.create_shadow_state()
 
 	if shadow_state.is_terminal():
@@ -112,18 +125,15 @@ func _make_decision():
 		var agent_name = shadow_state.AGENT_NAMES[i]
 		var agent = shadow_state.agents[i]
 
-		# IMPORTANT: Advance micro-turn for dead agents too
 		if not agent.is_alive():
-			# Step with wait action to advance micro-turn
 			var wait_action = {"agent": agent_name, "ability": "wait"}
 			shadow_state = shadow_state.step(wait_action)
 			continue
 
-		# Verify we're on the correct micro-turn
 		if shadow_state.micro_turn_index != i:
 			print("WARNING: micro_turn mismatch! Expected ", i, " got ", shadow_state.micro_turn_index)
 
-		# Run MCTS from this state
+		# Run MCTS
 		var seed_val = -1
 		if use_deterministic:
 			current_seed += 1
@@ -136,7 +146,10 @@ func _make_decision():
 		var result = search.search_with_stats()
 		var best_action = result.best_action
 
-		# Safety check: if MCTS returns wait but there are better options, investigate
+		# Record training sample before advancing state
+		if RecordProgress.is_recording:
+			_record_sample(shadow_state, best_action, i)
+
 		if best_action.get("ability") == "wait":
 			var legal = ActionGenerator.get_legal_actions(shadow_state)
 			var non_wait = legal.filter(func(a): return a.get("ability") != "wait")
@@ -146,20 +159,54 @@ func _make_decision():
 		if show_debug:
 			_print_decision(agent_name, result)
 
-		# Store action for execution
 		actions_to_execute.append(best_action)
-
-		# Advance shadow state for next agent's decision
 		shadow_state = shadow_state.step(best_action)
 
 	# Execute all actions in the real game
 	for action in actions_to_execute:
 		_execute_action(action)
-		# Small delay between actions for visual clarity
 		await get_tree().create_timer(0.3).timeout
 
 	decisions_made += 1
 	is_executing = false
+
+
+func _record_sample(state: ShadowState, action: Dictionary, agent_idx: int) -> void:
+	## Create and record a training sample from live game state.
+	var graph = GraphExporter.state_to_graph(state)
+	var flat_features = GraphExporter.state_to_flat_features(state)
+	var action_id = GraphExporter.action_to_id(action)
+	var legal_actions = ActionGenerator.get_legal_actions(state)
+	var legal_mask = _create_legal_mask(legal_actions)
+
+	var target_idx = -1
+	if action.has("target"):
+		match action.target:
+			"tank": target_idx = 0
+			"sniper": target_idx = 2
+
+	var sample = {
+		"node_features": graph.node_features,
+		"edge_index": graph.edge_index,
+		"edge_attr": graph.edge_attr,
+		"flat_features": flat_features,
+		"agent_idx": agent_idx,
+		"action_id": action_id,
+		"target_idx": target_idx,
+		"legal_mask": legal_mask,
+		"tick": decisions_made,
+		"boss_hp_ratio": float(state.boss.hp) / float(state.boss.max_hp)
+	}
+
+	RecordProgress.add_sample(sample)
+
+
+func _create_legal_mask(legal_actions: Array[Dictionary]) -> Array[int]:
+	var mask: Array[int] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+	for action in legal_actions:
+		var action_id = GraphExporter.action_to_id(action)
+		mask[action_id] = 1
+	return mask
 
 
 func _execute_action(action: Dictionary):
@@ -171,10 +218,8 @@ func _execute_action(action: Dictionary):
 	if ability == "wait":
 		return
 
-	# Track statistics
 	actions_taken[ability] = actions_taken.get(ability, 0) + 1
 
-	# Get the real agent node
 	var agent: Node2D = null
 	match agent_name:
 		"tank": agent = tank
@@ -184,7 +229,6 @@ func _execute_action(action: Dictionary):
 	if not agent or not is_instance_valid(agent) or agent.health <= 0:
 		return
 
-	# Execute the ability
 	match [agent_name, ability]:
 		["tank", "melee"]:
 			if agent.has_method("attempt_melee_attack"):
@@ -222,7 +266,6 @@ func _execute_action(action: Dictionary):
 
 
 func _print_decision(agent_name: String, result: Dictionary):
-	## Print debug info about the decision.
 	var action = result.best_action
 	var ability = action.get("ability", "wait")
 	var target = action.get("target", "")
@@ -237,7 +280,6 @@ func _print_decision(agent_name: String, result: Dictionary):
 		result.root_visits
 	])
 
-	# Show top alternatives
 	if result.has("children_stats") and result.children_stats.size() > 1:
 		var alts = []
 		for i in range(mini(3, result.children_stats.size())):
@@ -264,28 +306,36 @@ func _is_game_over() -> bool:
 
 func _on_game_over():
 	var elapsed = (Time.get_ticks_msec() - start_time) / 1000.0
-	
-	# Check victory - boss is dead if it's freed OR health <= 0
+
 	var victory = false
 	if not boss or not is_instance_valid(boss):
-		victory = true  # Boss was freed (defeated)
+		victory = true
 	elif boss.health <= 0:
-		victory = true  # Boss health depleted
+		victory = true
 
-	print("\n" + "=".repeat(50))
-	print("GAME OVER - ", "VICTORY!" if victory else "DEFEAT")
-	print("=".repeat(50))
-	print("Time: %.1f seconds" % elapsed)
-	print("Decisions made: ", decisions_made)
-	print("Total damage dealt: ", total_damage_dealt)
+	if not RecordProgress.is_recording:
+		# Normal game over display
+		print("\n" + "=".repeat(50))
+		print("GAME OVER - ", "VICTORY!" if victory else "DEFEAT")
+		print("=".repeat(50))
+		print("Time: %.1f seconds" % elapsed)
+		print("Decisions made: ", decisions_made)
+		print("Total damage dealt: ", total_damage_dealt)
+		if boss and is_instance_valid(boss):
+			print("Boss HP remaining: ", boss.health, "/650")
+		print("\nAction breakdown:")
+		for action_name in actions_taken:
+			print("  %s: %d" % [action_name, actions_taken[action_name]])
+		print("=".repeat(50))
+		print("Press R to restart")
+		print("=".repeat(50) + "\n")
+		return
 
-	if boss and is_instance_valid(boss):
-		print("Boss HP remaining: ", boss.health, "/650")
+	# Recording mode: log result and auto-restart
+	RecordProgress.record_episode_result(victory)
 
-	print("\nAction breakdown:")
-	for action_name in actions_taken:
-		print("  %s: %d" % [action_name, actions_taken[action_name]])
-
-	print("=".repeat(50))
-	print("Press R to restart")
-	print("=".repeat(50) + "\n")
+	if RecordProgress.has_episodes_remaining():
+		# Auto-restart for next episode
+		get_tree().reload_current_scene()
+	else:
+		RecordProgress.finish_recording()

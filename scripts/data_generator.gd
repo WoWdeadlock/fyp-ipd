@@ -5,7 +5,7 @@ extends Node
 
 # Configuration
 @export var num_episodes: int = 100
-@export var mcts_iterations: int = 200
+@export var mcts_iterations: int = MCTSConfig.ITERATIONS
 @export var max_steps_per_episode: int = 400
 @export var output_dir: String = "user://training_data"
 @export var samples_per_file: int = 5000

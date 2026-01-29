@@ -16,12 +16,7 @@ var total_nodes_created: int = 0
 var rng: RandomNumberGenerator = null
 var use_seeded_rng: bool = false
 
-# Default configuration
-const DEFAULT_ITERATIONS: int = 1000
-const DEFAULT_ROLLOUT_DEPTH: int = 100
-
-
-func _init(initial_state: ShadowState, iterations: int = DEFAULT_ITERATIONS, rollout_depth: int = DEFAULT_ROLLOUT_DEPTH):
+func _init(initial_state: ShadowState, iterations: int = MCTSConfig.ITERATIONS, rollout_depth: int = MCTSConfig.ROLLOUT_DEPTH):
 	root = MCTSNode.new(initial_state)
 	max_iterations = iterations
 	max_rollout_depth = rollout_depth
@@ -75,8 +70,8 @@ func _run_iteration() -> void:
 		if node:
 			total_nodes_created += 1
 
-	# 3. Simulation: Heuristic-guided rollout from the node
-	var reward = _simulate_with_heuristic(node)
+	# 3. Simulation: Random rollout (unbiased signal for UCB1)
+	var reward = _simulate(node)
 
 	# 4. Backpropagation: Update statistics up the tree
 	_backpropagate(node, reward)
@@ -147,9 +142,9 @@ func _simulate_with_heuristic(node: MCTSNode) -> float:
 			# Add some randomness to avoid deterministic behavior
 			var noise: float
 			if use_seeded_rng and rng:
-				noise = rng.randf() * 20.0
+				noise = rng.randf() * 5.0
 			else:
-				noise = randf() * 20.0
+				noise = randf() * 5.0
 			value += noise
 
 			if value > best_value:
