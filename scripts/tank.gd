@@ -75,11 +75,6 @@ func attempt_melee_attack():
 	if is_attacking or is_moving_to_target or is_taunting:
 		return
 
-	# Melee attack is now FREE (no stamina cost)
-	# if stamina < 20:
-	# 	print(name, ": Not enough stamina to attack!")
-	# 	return
-
 	# Find the boss
 	var boss = get_tree().get_first_node_in_group("boss")
 	if not boss:
@@ -101,7 +96,8 @@ func move_to_attack(delta: float):
 	var attack_range = 80.0
 	var ideal_distance = 45.0  # Preferred distance to maintain
 	var reposition_threshold = 90.0  # Only recalculate if beyond this distance
-	var current_distance = global_position.distance_to(target.global_position)
+	var target_pos = target.global_position
+	var current_distance = global_position.distance_to(target_pos)
 
 	# Check if in melee range
 	if current_distance <= attack_range:
@@ -113,14 +109,14 @@ func move_to_attack(delta: float):
 		return
 
 	# Only update navigation if far from target or target moved significantly
-	var target_moved = last_target_position.distance_to(target.global_position) > 70.0
+	var target_moved = last_target_position.distance_to(target_pos) > 70.0
 	var too_far = current_distance > reposition_threshold
 	var should_update = nav_update_timer >= nav_update_cooldown and (too_far or (nav_agent.is_navigation_finished() and target_moved))
 
 	if should_update:
 		# Move to ideal distance from target
-		var dir_to_target = (target.global_position - global_position).normalized()
-		var target_point = target.global_position - (dir_to_target * ideal_distance)
+		var dir_to_target = (target_pos - global_position).normalized()
+		var target_point = target_pos - (dir_to_target * ideal_distance)
 
 		if nav_agent:
 			nav_agent.target_position = target_point
@@ -138,9 +134,6 @@ func move_to_attack(delta: float):
 func execute_melee():
 	is_attacking = true
 	velocity = Vector2.ZERO
-
-	# Melee attack is FREE (no stamina cost)
-	# stamina -= 20
 
 	print(name, ": Striking with melee attack!")
 

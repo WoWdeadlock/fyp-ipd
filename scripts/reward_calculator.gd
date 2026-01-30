@@ -63,11 +63,13 @@ static func get_terminal_reward(state: ShadowState) -> float:
 			return 0.0
 
 
+# Normalization bounds: worst possible = LOSE_REWARD (-1000), best = WIN_REWARD + max speed bonus (1100)
+const NORM_OFFSET: float = 1000.0   # Shift so minimum maps to 0: -(-1000) = 1000
+const NORM_RANGE: float = 2100.0    # Total range: 1100 - (-1000) = 2100
+
 static func normalize_reward(raw_reward: float) -> float:
 	## Normalize reward to [0, 1] range for UCB calculation.
-	## Range: worst = LOSE_REWARD (-1000), best = WIN_REWARD + speed (1100)
-	## Non-terminal range roughly [-300, 1000] with current weights
-	var normalized = (raw_reward + 1000.0) / 2100.0
+	var normalized = (raw_reward + NORM_OFFSET) / NORM_RANGE
 	return clampf(normalized, 0.0, 1.0)
 
 

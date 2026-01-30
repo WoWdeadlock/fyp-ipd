@@ -15,7 +15,6 @@ var current_target: Node2D = null
 var nav_update_timer: float = 0.0
 var last_target_position: Vector2 = Vector2.ZERO
 var nav_update_cooldown: float = 0.35
-var is_in_position: bool = false
 var is_slowed: bool = false
 var slow_timer: float = 0.0
 var forced_target: Node2D = null
@@ -90,7 +89,6 @@ func _physics_process(_delta: float):
 func execute_ranged_attack(delta: float):
 	if not current_target or not is_instance_valid(current_target):
 		current_state = State.IDLE
-		is_in_position = false
 		return
 
 	nav_update_timer += delta
@@ -104,7 +102,6 @@ func execute_ranged_attack(delta: float):
 	if current_distance < 100.0:
 		print("Target too close! Switching to MELEE")
 		current_state = State.MELEE
-		is_in_position = false
 		return
 
 	# Check if in good ranged position
@@ -119,7 +116,6 @@ func execute_ranged_attack(delta: float):
 			current_target.take_damage(20)
 			print("Boss dealt 20 ranged damage to ", current_target.name)
 
-		is_in_position = false
 		await get_tree().create_timer(2.0).timeout
 
 		# Check if boss is still alive after the await
@@ -135,7 +131,6 @@ func execute_ranged_attack(delta: float):
 	var should_update = nav_update_timer >= nav_update_cooldown and (out_of_position or (nav_agent.is_navigation_finished() and target_moved))
 
 	if should_update:
-		is_in_position = false
 		var dir_away = (global_position - current_target.global_position).normalized()
 		var target_point = current_target.global_position + (dir_away * desired_distance)
 
@@ -182,7 +177,7 @@ func attack_target(enemy: Node2D, delta: float) -> void:
 		velocity = Vector2.ZERO
 		nav_agent.set_velocity(Vector2.ZERO)
 		current_state = State.BUSY
-	# Deal melee damage to the target
+		# Deal melee damage to the target
 		if enemy and is_instance_valid(enemy) and enemy.has_method("take_damage"):
 			enemy.take_damage(30)
 			print("Boss dealt 30 damage to ", enemy.name)

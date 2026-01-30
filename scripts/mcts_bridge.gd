@@ -6,6 +6,13 @@ const RESET_FLAG_FILE = "user://mcts_reset_flag.json"
 const MCTS_RESULT_FILE = "user://mcts_result.json"
 const LEGAL_ACTIONS_FILE = "user://legal_actions.json"
 
+const VALID_AGENTS: Array[String] = ["tank", "healer", "sniper"]
+const VALID_ABILITIES: Dictionary = {
+	"tank": ["melee", "taunt", "defensive"],
+	"healer": ["heal", "shield", "restore"],
+	"sniper": ["shot", "cripple", "power"],
+}
+
 # Shadow simulation state for MCTS
 var last_mcts_search: MCTSSearch = null
 
@@ -27,19 +34,27 @@ func _process(_delta):
 	# Check for command from Python
 	if FileAccess.file_exists(COMMAND_FILE):
 		var file = FileAccess.open(COMMAND_FILE, FileAccess.READ)
-		if file:
-			var json_str = file.get_as_text()
-			file.close()
+		if not file:
+			return
+		var json_str = file.get_as_text()
+		file.close()
 
-			var json = JSON.new()
-			var parse_result = json.parse(json_str)
-			if parse_result == OK:
-				var command = json.data
-				_handle_command(command)
-			else:
-				print("JSON parse error: ", json.get_error_message())
+		if json_str.is_empty():
+			return  # File still being written
 
-			# Delete command file after processing
+		var json = JSON.new()
+		var parse_result = json.parse(json_str)
+		if parse_result != OK:
+			print("JSON parse error: ", json.get_error_message())
+			# Don't delete — may be a partial write; retry next frame
+			return
+
+		var command = json.data
+		if command is Dictionary:
+			DirAccess.remove_absolute(COMMAND_FILE)
+			_handle_command(command)
+		else:
+			print("JSON command is not a Dictionary, ignoring")
 			DirAccess.remove_absolute(COMMAND_FILE)
 
 func _handle_command(cmd: Dictionary):
@@ -161,26 +176,47 @@ func _is_alive(group_name: String) -> bool:
 	var char = get_tree().get_first_node_in_group(group_name)
 	return char != null and is_instance_valid(char) and char.health > 0
 
+func _atomic_write(path: String, content: String) -> bool:
+	## Write to a temp file then rename for atomicity.
+	var tmp_path = path + ".tmp"
+	var file = FileAccess.open(tmp_path, FileAccess.WRITE)
+	if not file:
+		print("Error: Could not open temp file for writing: ", tmp_path)
+		return false
+	file.store_string(content)
+	file.close()
+	# Rename tmp to target (atomic on most filesystems)
+	var dir = DirAccess.open("user://")
+	if dir:
+		var from_name = tmp_path.get_file()
+		var to_name = path.get_file()
+		dir.rename(from_name, to_name)
+	return true
+
 func _write_state():
 	var state = get_state()
-	var file = FileAccess.open(STATE_FILE, FileAccess.WRITE)
-	if file:
-		file.store_string(JSON.stringify(state))
-		file.close()
-	else:
-		print("Error: Could not write state file")
+	_atomic_write(STATE_FILE, JSON.stringify(state))
 
 func execute_action(action: Dictionary) -> bool:
 	var agent_name = action.get("agent", "")
 	var ability = action.get("ability", "")
 	var target_name = action.get("target", "")
 
+	# Validate agent name
+	if agent_name not in VALID_AGENTS:
+		print("Error: Invalid agent name '", agent_name, "'")
+		return false
+
+	# Validate ability for agent
+	if ability not in VALID_ABILITIES.get(agent_name, []):
+		print("Error: Invalid ability '", ability, "' for agent '", agent_name, "'")
+		return false
+
 	var agent = get_tree().get_first_node_in_group(agent_name)
 	if not agent or not is_instance_valid(agent):
 		print("Error: Agent '", agent_name, "' not found")
 		return false
 
-	# Check if agent is alive (health > 0)
 	if agent.health <= 0:
 		print("Error: Agent '", agent_name, "' is dead (HP: ", agent.health, ")")
 		return false
@@ -375,27 +411,12 @@ func run_mcts_search(iterations: int = 1000, deterministic_seed: int = -1) -> Di
 
 
 func _write_mcts_result(result: Dictionary):
-	var file = FileAccess.open(MCTS_RESULT_FILE, FileAccess.WRITE)
-	if file:
-		file.store_string(JSON.stringify(result))
-		file.close()
-	else:
-		print("Error: Could not write MCTS result file")
+	_atomic_write(MCTS_RESULT_FILE, JSON.stringify(result))
 
 
 func _write_legal_actions(actions: Array):
-	var file = FileAccess.open(LEGAL_ACTIONS_FILE, FileAccess.WRITE)
-	if file:
-		file.store_string(JSON.stringify({"actions": actions}))
-		file.close()
-	else:
-		print("Error: Could not write legal actions file")
+	_atomic_write(LEGAL_ACTIONS_FILE, JSON.stringify({"actions": actions}))
 
 
 func _write_shadow_state(shadow_state: ShadowState):
-	var file = FileAccess.open(STATE_FILE, FileAccess.WRITE)
-	if file:
-		file.store_string(JSON.stringify(shadow_state.to_dict()))
-		file.close()
-	else:
-		print("Error: Could not write shadow state file")
+	_atomic_write(STATE_FILE, JSON.stringify(shadow_state.to_dict()))

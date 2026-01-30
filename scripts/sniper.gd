@@ -70,11 +70,6 @@ func attempt_sniper_shot():
 	if is_shooting or is_positioning or is_using_power_shot or is_using_crippling_shot:
 		return
 
-	# Sniper shot is now FREE (no stamina cost)
-	# if stamina < 25:
-	# 	print(name, ": Not enough stamina to shoot!")
-	# 	return
-
 	# Find the boss
 	var boss = get_tree().get_first_node_in_group("boss")
 	if not boss:
@@ -135,9 +130,6 @@ func position_for_shot(delta: float):
 func execute_shot():
 	is_shooting = true
 	velocity = Vector2.ZERO
-
-	# Sniper shot is FREE (no stamina cost)
-	# stamina -= 25
 
 	print(name, ": Taking the shot!")
 

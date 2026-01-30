@@ -32,8 +32,14 @@ func set_seed(seed_value: int) -> void:
 
 func search() -> Dictionary:
 	## Run MCTS and return the best action.
+	## Stops after max_iterations OR when wall-clock timeout is reached.
+	var start_ms = Time.get_ticks_msec()
+	var timeout_ms = MCTSConfig.SEARCH_TIMEOUT_MS
+
 	for i in range(max_iterations):
 		_run_iteration()
+		if (i & 63) == 0 and (Time.get_ticks_msec() - start_ms) >= timeout_ms:
+			break  # Check timeout every 64 iterations to avoid overhead
 
 	# Return best action from root
 	var best_child = root.most_visited_child()
