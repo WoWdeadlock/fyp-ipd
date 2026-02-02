@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IPD Control Panel</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎮 IPD Control Panel</h1>
+            <p class="subtitle">Intelligent Plan Development - Training & Inference Dashboard</p>
+        </header>
+
+        <!-- Tab Navigation -->
+        <div class="tabs">
+            <button class="tab-btn active" onclick="switchTab('collect')">📊 Data Collection</button>
+            <button class="tab-btn" onclick="switchTab('train')">🧠 Training</button>
+            <button class="tab-btn" onclick="switchTab('inference')">🚀 Inference Server</button>
+            <button class="tab-btn" onclick="switchTab('attributes')">⚙️ Attributes</button>
+        </div>
+
+        <!-- Data Collection Tab -->
+        <div id="collect-tab" class="tab-content active">
+            <h2>Parallel Data Collection</h2>
+            <p class="description">Run multiple Godot instances in parallel to collect MCTS training data.</p>
+            <p class="description" style="color: #667eea; font-weight: 600;">Server running on port 5050</p>
+
+            <form id="collect-form" class="config-form">
+                <div class="form-group">
+                    <label for="collect-godot-path">Godot Executable:</label>
+                    <input type="text" id="collect-godot-path" value="E:\Godot 4.5.1\Godot.exe">
+                </div>
+
+                <div class="form-group">
+                    <label for="collect-project-path">Project Path:</label>
+                    <input type="text" id="collect-project-path" readonly>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="collect-workers">Workers:</label>
+                        <input type="number" id="collect-workers" value="4" min="1" max="16">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="collect-episodes">Episodes per Worker:</label>
+                        <input type="number" id="collect-episodes" value="25" min="1" max="1000">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="collect-timescale">Timescale:</label>
+                        <input type="number" id="collect-timescale" value="3.0" min="1" max="10" step="0.5">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="collect-output-dir">Output Directory (optional):</label>
+                    <input type="text" id="collect-output-dir" placeholder="Leave empty for default">
+                </div>
+
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">Start Collection</button>
+                    <button type="button" class="btn btn-danger" onclick="stopProcess('collect')" disabled id="stop-collect-btn">Stop</button>
+                </div>
+            </form>
+
+            <div class="status-box">
+                <h3>Status</h3>
+                <div id="collect-status" class="status-text">Ready</div>
+            </div>
+
+            <div class="console-box">
+                <h3>Console Output</h3>
+                <pre id="collect-console" class="console"></pre>
+            </div>
+        </div>
+
+        <!-- Training Tab -->
+        <div id="train-tab" class="tab-content">
+            <h2>GAT Model Training</h2>
+            <p class="description">Train a Graph Attention Network to predict agent actions from game states.</p>
+
+            <form id="train-form" class="config-form">
+                <div class="form-group">
+                    <label for="train-data-dir">Training Data Directory:</label>
+                    <input type="text" id="train-data-dir">
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="train-epochs">Epochs:</label>
+                        <input type="number" id="train-epochs" value="100" min="1" max="1000">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="train-batch-size">Batch Size:</label>
+                        <input type="number" id="train-batch-size" value="64" min="1" max="512">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="train-lr">Learning Rate:</label>
+                        <input type="number" id="train-lr" value="0.001" min="0.0001" max="0.1" step="0.0001">
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="train-hidden-dim">Hidden Dimension:</label>
+                        <input type="number" id="train-hidden-dim" value="64" min="16" max="512">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="train-num-heads">Attention Heads:</label>
+                        <input type="number" id="train-num-heads" value="4" min="1" max="16">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="train-num-layers">GAT Layers:</label>
+                        <input type="number" id="train-num-layers" value="3" min="1" max="10">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="train-dropout">Dropout:</label>
+                        <input type="number" id="train-dropout" value="0.1" min="0" max="0.9" step="0.05">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="train-output-dir">Output Directory:</label>
+                    <input type="text" id="train-output-dir">
+                </div>
+
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">Start Training</button>
+                    <button type="button" class="btn btn-danger" onclick="stopProcess('train')" disabled id="stop-train-btn">Stop</button>
+                </div>
+            </form>
+
+            <div class="status-box">
+                <h3>Status</h3>
+                <div id="train-status" class="status-text">Ready</div>
+            </div>
+
+            <div class="console-box">
+                <h3>Console Output</h3>
+                <pre id="train-console" class="console"></pre>
+            </div>
+        </div>
+
+        <!-- Inference Tab -->
+        <div id="inference-tab" class="tab-content">
+            <h2>Inference Server</h2>
+            <p class="description">Start a TCP server that serves GAT model predictions to Godot.</p>
+
+            <form id="inference-form" class="config-form">
+                <div class="form-group">
+                    <label for="inference-checkpoint">Model Checkpoint:</label>
+                    <select id="inference-checkpoint">
+                        <option value="">Select a checkpoint...</option>
+                    </select>
+                    <button type="button" class="btn btn-secondary" onclick="refreshCheckpoints()">🔄 Refresh</button>
+                </div>
+
+                <div class="form-group">
+                    <label for="inference-port">Port:</label>
+                    <input type="number" id="inference-port" value="5555" min="1024" max="65535">
+                </div>
+
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">Start Server</button>
+                    <button type="button" class="btn btn-danger" onclick="stopProcess('inference_server')" disabled id="stop-inference-btn">Stop</button>
+                </div>
+            </form>
+
+            <div class="status-box">
+                <h3>Status</h3>
+                <div id="inference-status" class="status-text">Stopped</div>
+            </div>
+
+            <div class="console-box">
+                <h3>Console Output</h3>
+                <pre id="inference-console" class="console"></pre>
+            </div>
+        </div>
+
+        <!-- Attributes Tab -->
+        <div id="attributes-tab" class="tab-content">
+            <h2>Game Attributes</h2>
+            <p class="description">Modify stats for all agents and the boss. Changes are saved to the GDScript files.</p>
+
+            <div id="attributes-status-msg" class="status-msg" style="display:none;"></div>
+
+            <div class="attributes-grid">
+                <!-- Tank -->
+                <div class="attribute-card">
+                    <h3>🛡️ Tank</h3>
+                    <div class="attr-section">
+                        <h4>Base Stats</h4>
+                        <div class="form-row">
+                            <div class="form-group"><label>Max HP</label><input type="number" id="attr-tank-max_health" min="1"></div>
+                            <div class="form-group"><label>Max Stamina</label><input type="number" id="attr-tank-max_stamina" min="1"></div>
+                            <div class="form-group"><label>Speed</label><input type="number" id="attr-tank-speed" min="1" step="1"></div>
+                        </div>
+                    </div>
+                    <div class="attr-section">
+                        <h4>Abilities</h4>
+                        <div class="form-row">
+                            <div class="form-group"><label>Melee Damage</label><input type="number" id="attr-tank-melee_damage" min="0"></div>
+                            <div class="form-group"><label>Taunt Cost</label><input type="number" id="attr-tank-taunt_cost" min="0"></div>
+                            <div class="form-group"><label>Defensive Cost</label><input type="number" id="attr-tank-defensive_cost" min="0"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Healer -->
+                <div class="attribute-card">
+                    <h3>💚 Healer</h3>
+                    <div class="attr-section">
+                        <h4>Base Stats</h4>
+                        <div class="form-row">
+                            <div class="form-group"><label>Max HP</label><input type="number" id="attr-healer-max_health" min="1"></div>
+                            <div class="form-group"><label>Max Stamina</label><input type="number" id="attr-healer-max_stamina" min="1"></div>
+                            <div class="form-group"><label>Speed</label><input type="number" id="attr-healer-speed" min="1" step="1"></div>
+                        </div>
+                    </div>
+                    <div class="attr-section">
+                        <h4>Abilities</h4>
+                        <div class="form-row">
+                            <div class="form-group"><label>Heal Amount</label><input type="number" id="attr-healer-heal_amount" min="0"></div>
+                            <div class="form-group"><label>Shield Cost</label><input type="number" id="attr-healer-shield_cost" min="0"></div>
+                            <div class="form-group"><label>Restore Cost</label><input type="number" id="attr-healer-restore_cost" min="0"></div>
+                            <div class="form-group"><label>Restore Amount</label><input type="number" id="attr-healer-restore_amount" min="0"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sniper -->
+                <div class="attribute-card">
+                    <h3>🎯 Sniper</h3>
+                    <div class="attr-section">
+                        <h4>Base Stats</h4>
+                        <div class="form-row">
+                            <div class="form-group"><label>Max HP</label><input type="number" id="attr-sniper-max_health" min="1"></div>
+                            <div class="form-group"><label>Max Stamina</label><input type="number" id="attr-sniper-max_stamina" min="1"></div>
+                            <div class="form-group"><label>Speed</label><input type="number" id="attr-sniper-speed" min="1" step="1"></div>
+                        </div>
+                    </div>
+                    <div class="attr-section">
+                        <h4>Abilities</h4>
+                        <div class="form-row">
+                            <div class="form-group"><label>Shot Damage</label><input type="number" id="attr-sniper-shot_damage" min="0"></div>
+                            <div class="form-group"><label>Cripple Cost</label><input type="number" id="attr-sniper-cripple_cost" min="0"></div>
+                            <div class="form-group"><label>Cripple Damage</label><input type="number" id="attr-sniper-cripple_damage" min="0"></div>
+                            <div class="form-group"><label>Power Cost</label><input type="number" id="attr-sniper-power_cost" min="0"></div>
+                            <div class="form-group"><label>Power Damage</label><input type="number" id="attr-sniper-power_damage" min="0"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Boss -->
+                <div class="attribute-card">
+                    <h3>👹 Boss</h3>
+                    <div class="attr-section">
+                        <h4>Base Stats</h4>
+                        <div class="form-row">
+                            <div class="form-group"><label>Max HP</label><input type="number" id="attr-boss-max_health" min="1"></div>
+                            <div class="form-group"><label>Max Stamina</label><input type="number" id="attr-boss-max_stamina" min="1"></div>
+                            <div class="form-group"><label>Speed</label><input type="number" id="attr-boss-speed" min="1" step="1"></div>
+                        </div>
+                    </div>
+                    <div class="attr-section">
+                        <h4>Attacks</h4>
+                        <div class="form-row">
+                            <div class="form-group"><label>Ranged Damage</label><input type="number" id="attr-boss-ranged_damage" min="0"></div>
+                            <div class="form-group"><label>Melee Damage</label><input type="number" id="attr-boss-melee_damage" min="0"></div>
+                            <div class="form-group"><label>Stamina Regen</label><input type="number" id="attr-boss-stamina_regen" min="0" step="1"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <button type="button" class="btn btn-primary" onclick="saveAttributes()">Save All</button>
+                <button type="button" class="btn btn-secondary" onclick="loadAttributes()">Reset to Current</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>

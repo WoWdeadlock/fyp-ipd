@@ -41,7 +41,7 @@ def launch_worker(godot_path: str, project_path: str, worker_id: int,
         "--timescale", str(timescale),
     ]
 
-    print(f"  Worker {worker_id}: {episodes} episodes -> {output_dir}")
+    print(f"  Worker {worker_id}: {episodes} episodes -> {output_dir}", flush=True)
 
     # Log stdout/stderr to files for debugging
     log_dir = Path(os.environ["APPDATA"]) / "Godot" / "app_userdata" / "IPD" / "training_data"
@@ -63,7 +63,7 @@ def merge_worker_data(base_dir: Path, num_workers: int, output_dir: Path):
     for worker_id in range(num_workers):
         worker_dir = base_dir / f"worker_{worker_id}"
         if not worker_dir.exists():
-            print(f"  WARNING: Worker {worker_id} directory not found: {worker_dir}")
+            print(f"  WARNING: Worker {worker_id} directory not found: {worker_dir}", flush=True)
             continue
 
         # Load metadata
@@ -81,10 +81,10 @@ def merge_worker_data(base_dir: Path, num_workers: int, output_dir: Path):
             with open(data_file) as f:
                 samples = json.load(f)
             all_samples.extend(samples)
-            print(f"  Worker {worker_id}: loaded {len(samples)} samples from {data_file.name}")
+            print(f"  Worker {worker_id}: loaded {len(samples)} samples from {data_file.name}", flush=True)
 
     if not all_samples:
-        print("ERROR: No samples collected!")
+        print("ERROR: No samples collected!", flush=True)
         return
 
     # Write merged data files (5000 samples each)
@@ -121,12 +121,12 @@ def merge_worker_data(base_dir: Path, num_workers: int, output_dir: Path):
     with open(output_dir / "metadata.json", "w") as f:
         json.dump(metadata, f, indent=2)
 
-    print(f"\nMerged dataset:")
-    print(f"  Episodes: {total_episodes}")
-    print(f"  Samples:  {len(all_samples)}")
-    print(f"  Win rate: {win_rate:.1%}")
-    print(f"  Files:    {file_idx}")
-    print(f"  Output:   {output_dir}")
+    print(f"\nMerged dataset:", flush=True)
+    print(f"  Episodes: {total_episodes}", flush=True)
+    print(f"  Samples:  {len(all_samples)}", flush=True)
+    print(f"  Win rate: {win_rate:.1%}", flush=True)
+    print(f"  Files:    {file_idx}", flush=True)
+    print(f"  Output:   {output_dir}", flush=True)
 
 
 def main():
@@ -143,15 +143,15 @@ def main():
     output_dir = Path(args.output) if args.output else base_dir / "merged"
 
     total_episodes = args.workers * args.episodes_per_worker
-    print(f"Parallel MCTS Data Collection")
-    print(f"  Workers:    {args.workers}")
-    print(f"  Episodes:   {args.episodes_per_worker} per worker ({total_episodes} total)")
-    print(f"  Time scale: {args.timescale}x")
-    print(f"  Output:     {output_dir}")
-    print()
+    print(f"Parallel MCTS Data Collection", flush=True)
+    print(f"  Workers:    {args.workers}", flush=True)
+    print(f"  Episodes:   {args.episodes_per_worker} per worker ({total_episodes} total)", flush=True)
+    print(f"  Time scale: {args.timescale}x", flush=True)
+    print(f"  Output:     {output_dir}", flush=True)
+    print(flush=True)
 
     # Launch all workers
-    print("Launching workers...")
+    print("Launching workers...", flush=True)
     processes = []
     for i in range(args.workers):
         proc = launch_worker(args.godot, args.project, i,
@@ -159,11 +159,13 @@ def main():
         processes.append(proc)
 
     # Wait for all workers with progress monitoring
-    print(f"\nWaiting for {args.workers} workers to finish...")
-    print(f"  Logs: {base_dir / 'worker_*.log'}")
-    print(f"  Data: {base_dir / 'worker_*/'}")
-    print()
+    print(f"\nWaiting for {args.workers} workers to finish...", flush=True)
+    print(flush=True)
     start_time = time.time()
+
+    # Track log file read positions to tail new lines
+    log_positions = {i: 0 for i in range(args.workers)}
+    last_summary_time = 0.0
 
     finished = [False] * args.workers
     while not all(finished):
@@ -171,13 +173,41 @@ def main():
             if not finished[i] and proc.poll() is not None:
                 finished[i] = True
                 elapsed = time.time() - start_time
-                print(f"  Worker {i} finished (exit code: {proc.returncode}, elapsed: {elapsed:.0f}s)")
+                print(f"  [Worker {i}] FINISHED (exit code: {proc.returncode}, elapsed: {elapsed:.0f}s)", flush=True)
 
-        # Show progress every 30 seconds
-        if not all(finished):
-            elapsed = time.time() - start_time
-            # Count data files per worker
+        # Tail worker log files for new output
+        for i in range(args.workers):
+            log_path = base_dir / f"worker_{i}.log"
+            if not log_path.exists():
+                continue
+            try:
+                with open(log_path, "r") as f:
+                    f.seek(log_positions[i])
+                    new_content = f.read()
+                    log_positions[i] = f.tell()
+                if new_content:
+                    for line in new_content.splitlines():
+                        line = line.strip()
+                        if not line:
+                            continue
+                        # Filter to meaningful lines (episodes, results, errors)
+                        lower = line.lower()
+                        if any(kw in lower for kw in [
+                            "episode", "victory", "defeat", "complete",
+                            "sample", "record", "data", "error", "warning",
+                            "saved", "win", "lose", "unwinnable", "terminal",
+                            "mcts", "running", "start", "finish", "live",
+                        ]):
+                            print(f"  [w{i}] {line}", flush=True)
+            except (OSError, IOError):
+                pass
+
+        # Print summary every 10 seconds
+        elapsed = time.time() - start_time
+        if not all(finished) and elapsed - last_summary_time >= 10:
+            last_summary_time = elapsed
             status_parts = []
+            total_data_files = 0
             for i in range(args.workers):
                 worker_dir = base_dir / f"worker_{i}"
                 if worker_dir.exists():
@@ -186,31 +216,33 @@ def main():
                     if meta.exists():
                         status_parts.append(f"w{i}:done")
                     else:
-                        status_parts.append(f"w{i}:{len(data_files)}f")
+                        status_parts.append(f"w{i}:{len(data_files)}ep")
+                    total_data_files += len(data_files)
                 else:
                     status_parts.append(f"w{i}:--")
 
             done_count = sum(finished)
-            print(f"  [{elapsed:5.0f}s] {done_count}/{args.workers} done | {' | '.join(status_parts)}", end="\r")
-            time.sleep(10)
+            print(f"  --- [{elapsed:5.0f}s] {done_count}/{args.workers} workers done | episodes: {total_data_files}/{total_episodes} | {' | '.join(status_parts)} ---", flush=True)
+
+        time.sleep(1)
 
     total_time = time.time() - start_time
-    print(f"\nAll workers finished in {total_time:.0f}s")
+    print(f"\nAll workers finished in {total_time:.0f}s", flush=True)
 
     # Merge data
-    print("\nMerging worker data...")
+    print("\nMerging worker data...", flush=True)
     merge_worker_data(base_dir, args.workers, output_dir)
 
     # Clean up worker directories
-    print("\nCleaning up worker directories...")
+    print("\nCleaning up worker directories...", flush=True)
     import shutil
     for i in range(args.workers):
         worker_dir = base_dir / f"worker_{i}"
         if worker_dir.exists():
             shutil.rmtree(worker_dir)
-            print(f"  Removed {worker_dir}")
+            print(f"  Removed {worker_dir}", flush=True)
 
-    print("\nDone!")
+    print("\nDone!", flush=True)
 
 
 if __name__ == "__main__":
